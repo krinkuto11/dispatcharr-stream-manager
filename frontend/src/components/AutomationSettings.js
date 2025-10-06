@@ -13,10 +13,11 @@ import {
   CircularProgress,
   Grid
 } from '@mui/material';
-import { automationAPI } from '../services/api';
+import { automationAPI, streamCheckerAPI } from '../services/api';
 
 function AutomationSettings() {
   const [config, setConfig] = useState(null);
+  const [streamCheckerConfig, setStreamCheckerConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -29,8 +30,12 @@ function AutomationSettings() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const response = await automationAPI.getConfig();
-      setConfig(response.data);
+      const [automationResponse, streamCheckerResponse] = await Promise.all([
+        automationAPI.getConfig(),
+        streamCheckerAPI.getConfig()
+      ]);
+      setConfig(automationResponse.data);
+      setStreamCheckerConfig(streamCheckerResponse.data);
     } catch (err) {
       console.error('Failed to load config:', err);
       setError('Failed to load automation configuration');
@@ -42,7 +47,10 @@ function AutomationSettings() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await automationAPI.updateConfig(config);
+      await Promise.all([
+        automationAPI.updateConfig(config),
+        streamCheckerAPI.updateConfig(streamCheckerConfig)
+      ]);
       setSuccess('Configuration saved successfully');
     } catch (err) {
       setError('Failed to save configuration');
@@ -69,6 +77,27 @@ function AutomationSettings() {
     }
   };
 
+  const handleStreamCheckerConfigChange = (field, value) => {
+    if (field.includes('.')) {
+      const parts = field.split('.');
+      if (parts.length === 2) {
+        const [parent, child] = parts;
+        setStreamCheckerConfig(prev => ({
+          ...prev,
+          [parent]: {
+            ...prev[parent],
+            [child]: value
+          }
+        }));
+      }
+    } else {
+      setStreamCheckerConfig(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="400px">
@@ -77,7 +106,7 @@ function AutomationSettings() {
     );
   }
 
-  if (!config) {
+  if (!config || !streamCheckerConfig) {
     return (
       <Alert severity="error">
         Failed to load configuration
@@ -121,6 +150,55 @@ function AutomationSettings() {
                 margin="normal"
                 helperText="How often to check for playlist updates"
               />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Global Check Schedule */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Global Check Schedule
+              </Typography>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={streamCheckerConfig.global_check_schedule?.enabled !== false}
+                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.enabled', e.target.checked)}
+                  />
+                }
+                label="Enable Scheduled Global Check"
+                sx={{ mb: 2 }}
+              />
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Configure the time when the daily global channel check runs. This check processes all channels to verify stream quality.
+              </Typography>
+              
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Hour (0-23)"
+                  type="number"
+                  value={streamCheckerConfig.global_check_schedule?.hour ?? 3}
+                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.hour', parseInt(e.target.value))}
+                  inputProps={{ min: 0, max: 23 }}
+                  disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
+                  sx={{ flex: 1 }}
+                  helperText="Hour (24-hour format)"
+                />
+                <TextField
+                  label="Minute (0-59)"
+                  type="number"
+                  value={streamCheckerConfig.global_check_schedule?.minute ?? 0}
+                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.minute', parseInt(e.target.value))}
+                  inputProps={{ min: 0, max: 59 }}
+                  disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
+                  sx={{ flex: 1 }}
+                  helperText="Minute"
+                />
+              </Box>
             </CardContent>
           </Card>
         </Grid>
