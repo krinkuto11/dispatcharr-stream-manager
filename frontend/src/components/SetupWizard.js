@@ -33,7 +33,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
-import { setupAPI, automationAPI, channelsAPI, regexAPI } from '../services/api';
+import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI } from '../services/api';
 
 const steps = [
   {
@@ -59,6 +59,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   const [setupStatus, setSetupStatus] = useState(initialSetupStatus);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [config, setConfig] = useState({
     playlist_update_interval_minutes: 5,
     global_check_interval_hours: 24,
@@ -70,6 +71,14 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       changelog_tracking: true
     }
   });
+
+  // Dispatcharr configuration state
+  const [dispatcharrConfig, setDispatcharrConfig] = useState({
+    base_url: '',
+    username: '',
+    password: ''
+  });
+  const [testingConnection, setTestingConnection] = useState(false);
 
   // Channel configuration state
   const [channels, setChannels] = useState([]);
@@ -84,6 +93,9 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   });
 
   useEffect(() => {
+    // Load Dispatcharr configuration
+    loadDispatcharrConfig();
+    
     if (initialSetupStatus) {
       setSetupStatus(initialSetupStatus);
       // Determine starting step based on current status
@@ -104,6 +116,20 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       }
     }
   }, [initialSetupStatus]);
+
+  const loadDispatcharrConfig = async () => {
+    try {
+      const response = await dispatcharrAPI.getConfig();
+      setDispatcharrConfig({
+        base_url: response.data.base_url || '',
+        username: response.data.username || '',
+        password: '' // Never load password from backend
+      });
+    } catch (err) {
+      console.error('Failed to load Dispatcharr config:', err);
+      // Non-critical error, just log it
+    }
+  };
 
   const refreshSetupStatus = async () => {
     try {
@@ -133,6 +159,48 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      setTestingConnection(true);
+      setError('');
+      setSuccess('');
+      
+      const response = await dispatcharrAPI.testConnection(dispatcharrConfig);
+      setSuccess(response.data.message);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Connection test failed';
+      setError(errorMessage);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const handleSaveDispatcharrConfig = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccess('');
+      
+      const response = await dispatcharrAPI.updateConfig(dispatcharrConfig);
+      setSuccess(response.data.message);
+      
+      // Refresh setup status after saving
+      await refreshSetupStatus();
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || 'Failed to save configuration';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDispatcharrConfigChange = (field, value) => {
+    setDispatcharrConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleNext = () => {
@@ -354,13 +422,19 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                   
                   {index === 0 && (
                     <Box sx={{ mt: 2 }}>
+                      {success && (
+                        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+                          {success}
+                        </Alert>
+                      )}
+                      
                       {setupStatus?.dispatcharr_connection ? (
                         <Alert severity="success" sx={{ mb: 2 }}>
                           Successfully connected to Dispatcharr
                         </Alert>
                       ) : (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                          Cannot connect to Dispatcharr. Please check your .env configuration.
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                          Configure your Dispatcharr connection below
                         </Alert>
                       )}
                       
@@ -368,20 +442,61 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                         <Alert severity="success" sx={{ mb: 2 }}>
                           Channels loaded successfully
                         </Alert>
-                      ) : (
+                      ) : setupStatus?.dispatcharr_connection ? (
                         <Alert severity="warning" sx={{ mb: 2 }}>
                           No channels found. You may need to import channels first.
                         </Alert>
-                      )}
+                      ) : null}
                       
-                      <Box sx={{ mt: 2 }}>
+                      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                        Dispatcharr Configuration
+                      </Typography>
+                      
+                      <TextField
+                        label="Dispatcharr Base URL"
+                        value={dispatcharrConfig.base_url}
+                        onChange={(e) => handleDispatcharrConfigChange('base_url', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder="http://your-dispatcharr-instance.com:9191"
+                        helperText="The base URL of your Dispatcharr instance"
+                      />
+                      
+                      <TextField
+                        label="Username"
+                        value={dispatcharrConfig.username}
+                        onChange={(e) => handleDispatcharrConfigChange('username', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder="your-username"
+                      />
+                      
+                      <TextField
+                        label="Password"
+                        type="password"
+                        value={dispatcharrConfig.password}
+                        onChange={(e) => handleDispatcharrConfigChange('password', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder="your-password"
+                        helperText="Enter your password to update configuration"
+                      />
+                      
+                      <Box sx={{ mt: 3, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button
+                          variant="outlined"
+                          onClick={handleTestConnection}
+                          disabled={testingConnection || !dispatcharrConfig.base_url || !dispatcharrConfig.username || !dispatcharrConfig.password}
+                        >
+                          {testingConnection ? <CircularProgress size={20} /> : 'Test Connection'}
+                        </Button>
                         <Button
                           variant="contained"
-                          onClick={handleNext}
-                          disabled={!setupStatus?.dispatcharr_connection}
-                          sx={{ mr: 1 }}
+                          onClick={handleSaveDispatcharrConfig}
+                          disabled={loading || !dispatcharrConfig.base_url || !dispatcharrConfig.username || !dispatcharrConfig.password}
+                          color="primary"
                         >
-                          Continue
+                          {loading ? <CircularProgress size={20} /> : 'Save Configuration'}
                         </Button>
                         <Button
                           variant="outlined"
@@ -389,6 +504,17 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                           disabled={loading}
                         >
                           {loading ? <CircularProgress size={20} /> : 'Refresh Status'}
+                        </Button>
+                      </Box>
+                      
+                      <Box sx={{ mt: 3 }}>
+                        <Button
+                          variant="contained"
+                          onClick={handleNext}
+                          disabled={!setupStatus?.dispatcharr_connection}
+                          size="large"
+                        >
+                          Continue
                         </Button>
                       </Box>
                     </Box>

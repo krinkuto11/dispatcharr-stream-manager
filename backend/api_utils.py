@@ -418,6 +418,122 @@ def get_m3u_accounts() -> Optional[List[Dict[str, Any]]]:
     url = f"{_get_base_url()}/api/m3u/accounts/"
     return fetch_data_from_url(url)
 
+
+def get_dispatcharr_config() -> Dict[str, str]:
+    """
+    Get current Dispatcharr configuration from environment.
+    
+    Returns:
+        Dict[str, str]: Dictionary with base_url, username, and has_password flag
+    """
+    return {
+        "base_url": os.getenv("DISPATCHARR_BASE_URL", ""),
+        "username": os.getenv("DISPATCHARR_USER", ""),
+        "has_password": bool(os.getenv("DISPATCHARR_PASS"))
+    }
+
+
+def update_dispatcharr_config(base_url: str, username: str, password: str) -> bool:
+    """
+    Update Dispatcharr configuration in .env file.
+    
+    Args:
+        base_url: Dispatcharr base URL
+        username: Dispatcharr username
+        password: Dispatcharr password
+        
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    try:
+        # Update environment variables
+        os.environ["DISPATCHARR_BASE_URL"] = base_url
+        os.environ["DISPATCHARR_USER"] = username
+        os.environ["DISPATCHARR_PASS"] = password
+        
+        # If .env file exists, update it
+        if env_path.exists():
+            set_key(env_path, "DISPATCHARR_BASE_URL", base_url)
+            set_key(env_path, "DISPATCHARR_USER", username)
+            set_key(env_path, "DISPATCHARR_PASS", password)
+            logging.info("Dispatcharr configuration updated in .env file")
+        else:
+            logging.info("Dispatcharr configuration updated in memory (no .env file)")
+        
+        return True
+    except Exception as e:
+        logging.error(f"Failed to update Dispatcharr configuration: {e}")
+        return False
+
+
+def test_dispatcharr_connection(base_url: str, username: str, password: str) -> Dict[str, Any]:
+    """
+    Test Dispatcharr connection with provided credentials.
+    
+    Args:
+        base_url: Dispatcharr base URL
+        username: Dispatcharr username
+        password: Dispatcharr password
+        
+    Returns:
+        Dict[str, Any]: Result with success flag and message
+    """
+    if not all([base_url, username, password]):
+        return {
+            "success": False,
+            "message": "All fields (URL, username, password) are required"
+        }
+    
+    login_url = f"{base_url}/api/accounts/token/"
+    
+    try:
+        resp = requests.post(
+            login_url,
+            headers={"Content-Type": "application/json"},
+            json={"username": username, "password": password},
+            timeout=10
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        token = data.get("access") or data.get("token")
+        
+        if token:
+            return {
+                "success": True,
+                "message": "Successfully connected to Dispatcharr"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Login failed: No access token in response"
+            }
+    except requests.exceptions.Timeout:
+        return {
+            "success": False,
+            "message": "Connection timeout. Please check the URL"
+        }
+    except requests.exceptions.ConnectionError:
+        return {
+            "success": False,
+            "message": "Cannot connect to Dispatcharr. Please check the URL"
+        }
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            return {
+                "success": False,
+                "message": "Invalid username or password"
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"HTTP error: {e.response.status_code}"
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Connection failed: {str(e)}"
+        }
+
 def get_streams(log_result: bool = True) -> List[Dict[str, Any]]:
     """
     Fetch all available streams with pagination support.

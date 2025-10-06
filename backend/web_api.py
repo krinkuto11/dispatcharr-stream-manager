@@ -17,7 +17,14 @@ from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 from automated_stream_manager import AutomatedStreamManager, RegexChannelMatcher
-from api_utils import fetch_data_from_url, _get_base_url
+from api_utils import (
+    fetch_data_from_url, 
+    _get_base_url, 
+    get_dispatcharr_config,
+    update_dispatcharr_config,
+    test_dispatcharr_connection,
+    login
+)
 from stream_checker_service import get_stream_checker_service
 
 
@@ -526,6 +533,78 @@ def create_sample_patterns():
         return jsonify({"message": "Sample patterns created successfully"})
     except Exception as e:
         logging.error(f"Error creating sample patterns: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# ===== Dispatcharr Configuration Endpoints =====
+
+@app.route('/api/dispatcharr/config', methods=['GET'])
+def get_dispatcharr_config_endpoint():
+    """Get current Dispatcharr configuration."""
+    try:
+        config = get_dispatcharr_config()
+        return jsonify(config)
+    except Exception as e:
+        logging.error(f"Error getting Dispatcharr config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dispatcharr/config', methods=['PUT'])
+def update_dispatcharr_config_endpoint():
+    """Update Dispatcharr configuration."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No configuration data provided"}), 400
+        
+        base_url = data.get('base_url', '').strip()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        
+        if not all([base_url, username, password]):
+            return jsonify({"error": "All fields (base_url, username, password) are required"}), 400
+        
+        success = update_dispatcharr_config(base_url, username, password)
+        
+        if success:
+            # After updating config, try to login with new credentials
+            login_success = login()
+            if login_success:
+                return jsonify({
+                    "message": "Configuration updated and login successful",
+                    "login_success": True
+                })
+            else:
+                return jsonify({
+                    "message": "Configuration updated but login failed. Please check credentials.",
+                    "login_success": False
+                }), 200
+        else:
+            return jsonify({"error": "Failed to update configuration"}), 500
+            
+    except Exception as e:
+        logging.error(f"Error updating Dispatcharr config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dispatcharr/test-connection', methods=['POST'])
+def test_dispatcharr_connection_endpoint():
+    """Test Dispatcharr connection with provided credentials."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No configuration data provided"}), 400
+        
+        base_url = data.get('base_url', '').strip()
+        username = data.get('username', '').strip()
+        password = data.get('password', '').strip()
+        
+        result = test_dispatcharr_connection(base_url, username, password)
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logging.error(f"Error testing Dispatcharr connection: {e}")
         return jsonify({"error": str(e)}), 500
 
 # ===== Stream Checker Endpoints =====
