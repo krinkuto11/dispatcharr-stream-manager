@@ -14,8 +14,8 @@ The application now uses a **simplified single-container architecture** that is 
 
 1. **Clone and configure**:
    ```bash
-   git clone https://github.com/krinkuto11/stream-checker.git
-   cd stream-checker
+   git clone https://github.com/krinkuto11/streamflow.git
+   cd streamflow
    cp .env.template .env
    # Edit .env with your Dispatcharr instance details
    ```
@@ -151,7 +151,7 @@ For containerized deployments, you can specify environment variables directly in
 
 ```yaml
 services:
-  stream-checker:
+  streamflow:
     # ... other config ...
     environment:
       - DISPATCHARR_BASE_URL=http://your-dispatcharr-instance.com:9191
@@ -180,6 +180,6 @@ The application now uses a single Docker container that includes:
 ## GitHub Container Registry
 
 Images are automatically built and pushed to GHCR via GitHub Actions when code is pushed to `main` or `beta` branches. Images are available at:
-- `ghcr.io/krinkuto11/stream-checker:latest`
-- `ghcr.io/krinkuto11/stream-checker:beta`
-- `ghcr.io/krinkuto11/stream-checker:<branch-name>`
+- `ghcr.io/krinkuto11/streamflow:latest`
+- `ghcr.io/krinkuto11/streamflow:beta`
+- `ghcr.io/krinkuto11/streamflow:<branch-name>`
