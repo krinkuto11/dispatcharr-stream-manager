@@ -33,7 +33,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
-import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI } from '../services/api';
+import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI, streamCheckerAPI } from '../services/api';
 
 const steps = [
   {
@@ -68,6 +68,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       auto_stream_discovery: true,
       auto_quality_reordering: true,
       changelog_tracking: true
+    }
+  });
+  
+  // Stream checker config for global check schedule
+  const [streamCheckerConfig, setStreamCheckerConfig] = useState({
+    global_check_schedule: {
+      enabled: true,
+      hour: 3,
+      minute: 0
     }
   });
 
@@ -167,7 +176,11 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   const handleConfigSave = async () => {
     try {
       setLoading(true);
-      await automationAPI.updateConfig(config);
+      // Save both automation config and stream checker config
+      await Promise.all([
+        automationAPI.updateConfig(config),
+        streamCheckerAPI.updateConfig(streamCheckerConfig)
+      ]);
       
       // After saving config, refresh setup status to check if we can proceed
       await refreshSetupStatus();
@@ -241,6 +254,27 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       }));
     } else {
       setConfig(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
+  const handleStreamCheckerConfigChange = (field, value) => {
+    if (field.includes('.')) {
+      const parts = field.split('.');
+      if (parts.length === 2) {
+        const [parent, child] = parts;
+        setStreamCheckerConfig(prev => ({
+          ...prev,
+          [parent]: {
+            ...prev[parent],
+            [child]: value
+          }
+        }));
+      }
+    } else {
+      setStreamCheckerConfig(prev => ({
         ...prev,
         [field]: value
       }));
@@ -639,6 +673,46 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                         fullWidth
                         margin="normal"
                       />
+                      
+                      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                        Global Check Schedule
+                      </Typography>
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={streamCheckerConfig.global_check_schedule.enabled}
+                            onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.enabled', e.target.checked)}
+                          />
+                        }
+                        label="Enable Scheduled Global Check"
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Configure the time when the daily global channel check runs (24-hour format).
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                        <TextField
+                          label="Hour (0-23)"
+                          type="number"
+                          value={streamCheckerConfig.global_check_schedule.hour}
+                          onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.hour', parseInt(e.target.value))}
+                          inputProps={{ min: 0, max: 23 }}
+                          disabled={!streamCheckerConfig.global_check_schedule.enabled}
+                          sx={{ flex: 1 }}
+                        />
+                        <TextField
+                          label="Minute (0-59)"
+                          type="number"
+                          value={streamCheckerConfig.global_check_schedule.minute}
+                          onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.minute', parseInt(e.target.value))}
+                          inputProps={{ min: 0, max: 59 }}
+                          disabled={!streamCheckerConfig.global_check_schedule.enabled}
+                          sx={{ flex: 1 }}
+                        />
+                      </Box>
                       
                       <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                         Enabled Features
