@@ -1,4 +1,4 @@
-# Dispatcharr Stream Manager
+# StreamFlow for Dispatcharr
 
 Automated stream management system for Dispatcharr IPTV services with intelligent quality checking and automatic stream reordering.
 1. Updates playlists
