@@ -528,6 +528,152 @@ def create_sample_patterns():
         logging.error(f"Error creating sample patterns: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/dispatcharr/config', methods=['GET'])
+def get_dispatcharr_config():
+    """Get current Dispatcharr configuration (without exposing password)."""
+    try:
+        config = {
+            "base_url": os.getenv("DISPATCHARR_BASE_URL", ""),
+            "username": os.getenv("DISPATCHARR_USER", ""),
+            # Never return the password for security reasons
+            "has_password": bool(os.getenv("DISPATCHARR_PASS"))
+        }
+        return jsonify(config)
+    except Exception as e:
+        logging.error(f"Error getting Dispatcharr config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dispatcharr/config', methods=['PUT'])
+def update_dispatcharr_config():
+    """Update Dispatcharr configuration."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No configuration data provided"}), 400
+        
+        from dotenv import set_key
+        env_file = Path('.') / '.env'
+        
+        # Update environment variables
+        if 'base_url' in data:
+            base_url = data['base_url'].strip()
+            if env_file.exists():
+                set_key(env_file, "DISPATCHARR_BASE_URL", base_url)
+            os.environ["DISPATCHARR_BASE_URL"] = base_url
+        
+        if 'username' in data:
+            username = data['username'].strip()
+            if env_file.exists():
+                set_key(env_file, "DISPATCHARR_USER", username)
+            os.environ["DISPATCHARR_USER"] = username
+        
+        if 'password' in data:
+            password = data['password']
+            if env_file.exists():
+                set_key(env_file, "DISPATCHARR_PASS", password)
+            os.environ["DISPATCHARR_PASS"] = password
+        
+        # Clear token when credentials change so we re-authenticate
+        if env_file.exists():
+            set_key(env_file, "DISPATCHARR_TOKEN", "")
+        os.environ["DISPATCHARR_TOKEN"] = ""
+        
+        return jsonify({"message": "Dispatcharr configuration updated successfully"})
+    except Exception as e:
+        logging.error(f"Error updating Dispatcharr config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dispatcharr/test-connection', methods=['POST'])
+def test_dispatcharr_connection():
+    """Test Dispatcharr connection with provided or existing credentials."""
+    try:
+        data = request.get_json() or {}
+        
+        # Temporarily use provided credentials if available, otherwise use existing
+        test_base_url = data.get('base_url', os.getenv("DISPATCHARR_BASE_URL"))
+        test_username = data.get('username', os.getenv("DISPATCHARR_USER"))
+        test_password = data.get('password', os.getenv("DISPATCHARR_PASS"))
+        
+        if not all([test_base_url, test_username, test_password]):
+            return jsonify({
+                "success": False,
+                "error": "Missing required credentials (base_url, username, password)"
+            }), 400
+        
+        # Test login
+        import requests
+        login_url = f"{test_base_url}/api/accounts/token/"
+        
+        try:
+            resp = requests.post(
+                login_url,
+                headers={"Content-Type": "application/json"},
+                json={"username": test_username, "password": test_password},
+                timeout=10
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            token = data.get("access") or data.get("token")
+            
+            if token:
+                # Test if we can fetch channels
+                channels_url = f"{test_base_url}/api/channels/channels/"
+                channels_resp = requests.get(
+                    channels_url,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/json"
+                    },
+                    params={'page_size': 1},
+                    timeout=10
+                )
+                
+                if channels_resp.status_code == 200:
+                    return jsonify({
+                        "success": True,
+                        "message": "Connection successful"
+                    })
+                else:
+                    return jsonify({
+                        "success": False,
+                        "error": "Authentication successful but failed to fetch channels"
+                    })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": "No token received from Dispatcharr"
+                })
+        except requests.exceptions.Timeout:
+            return jsonify({
+                "success": False,
+                "error": "Connection timeout. Please check the URL and network connectivity."
+            })
+        except requests.exceptions.ConnectionError:
+            return jsonify({
+                "success": False,
+                "error": "Could not connect to Dispatcharr. Please check the URL."
+            })
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                return jsonify({
+                    "success": False,
+                    "error": "Invalid username or password"
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": f"HTTP error: {e.response.status_code}"
+                })
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Connection failed: {str(e)}"
+            })
+            
+    except Exception as e:
+        logging.error(f"Error testing Dispatcharr connection: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # ===== Stream Checker Endpoints =====
 
 @app.route('/api/stream-checker/status', methods=['GET'])
