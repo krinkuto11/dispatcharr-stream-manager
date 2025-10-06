@@ -9,8 +9,8 @@ Automated stream management system for Dispatcharr IPTV services with intelligen
 ## Quick Deployment
 
 ```bash
-git clone https://github.com/krinkuto11/stream-checker.git
-cd stream-checker
+git clone https://github.com/krinkuto11/streamflow.git
+cd streamflow
 cp .env.template .env
 # Edit .env with your Dispatcharr instance details
 docker compose up -d
