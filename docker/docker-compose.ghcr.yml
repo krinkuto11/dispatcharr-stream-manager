@@ -1,0 +1,7 @@
+# docker-compose.ghcr.yml
+# Override file to use pre-built images from GitHub Container Registry
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.ghcr.yml up
+
+services:
+  stream-checker:
+    image: ghcr.io/krinkuto11/stream-checker:latest

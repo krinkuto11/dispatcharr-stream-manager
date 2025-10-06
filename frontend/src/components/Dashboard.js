@@ -1,0 +1,404 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Chip,
+  Box,
+  CircularProgress,
+  Alert,
+  Divider
+} from '@mui/material';
+import {
+  PlayArrow as StartIcon,
+  Stop as StopIcon,
+  Refresh as RefreshIcon,
+  PlaylistAdd as DiscoverIcon,
+  CheckCircle as CheckIcon,
+  Schedule as ScheduleIcon,
+  TrendingUp as TrendingIcon
+} from '@mui/icons-material';
+import { automationAPI, streamAPI } from '../services/api';
+
+function Dashboard() {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    loadStatus();
+    // Refresh status every 30 seconds
+    const interval = setInterval(loadStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadStatus = async () => {
+    try {
+      const response = await automationAPI.getStatus();
+      setStatus(response.data);
+    } catch (err) {
+      console.error('Failed to load status:', err);
+      setError('Failed to load automation status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAutomationToggle = async () => {
+    try {
+      setActionLoading('automation');
+      if (status?.running) {
+        await automationAPI.stop();
+        setSuccess('Automation stopped successfully');
+      } else {
+        await automationAPI.start();
+        setSuccess('Automation started successfully');
+      }
+      await loadStatus();
+    } catch (err) {
+      setError(`Failed to ${status?.running ? 'stop' : 'start'} automation`);
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleRefreshPlaylist = async () => {
+    try {
+      setActionLoading('playlist');
+      await streamAPI.refreshPlaylist();
+      setSuccess('Playlist refresh initiated successfully');
+      await loadStatus();
+    } catch (err) {
+      setError('Failed to refresh playlist');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleDiscoverStreams = async () => {
+    try {
+      setActionLoading('discover');
+      const response = await streamAPI.discoverStreams();
+      setSuccess(`Stream discovery completed. ${response.data.total_assigned} streams assigned.`);
+      await loadStatus();
+    } catch (err) {
+      setError('Failed to discover streams');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleRunCycle = async () => {
+    try {
+      setActionLoading('cycle');
+      await automationAPI.runCycle();
+      setSuccess('Automation cycle completed successfully');
+      await loadStatus();
+    } catch (err) {
+      setError('Failed to run automation cycle');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'Never';
+    return new Date(dateString).toLocaleString();
+  };
+
+  const formatActivityDetails = (entry) => {
+    const details = entry.details || {};
+    const parts = [];
+
+    // Format different types of activity details
+    if (details.success !== undefined) {
+      parts.push(details.success ? '✓ Success' : '✗ Failed');
+    }
+    if (details.total_assigned) {
+      parts.push(`${details.total_assigned} streams assigned`);
+    }
+    if (details.added_count) {
+      parts.push(`+${details.added_count} added`);
+    }
+    if (details.removed_count) {
+      parts.push(`-${details.removed_count} removed`);
+    }
+    if (details.channel_count) {
+      parts.push(`${details.channel_count} channels`);
+    }
+    if (details.error) {
+      parts.push(`Error: ${details.error}`);
+    }
+
+    return parts.length > 0 ? parts.join(' • ') : '';
+  };
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="400px">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      <Typography variant="h4" gutterBottom>
+        Dashboard
+      </Typography>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      )}
+
+      <Grid container spacing={3}>
+        {/* Automation Status Card */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Automation Status
+              </Typography>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <Chip
+                  label={status?.running ? 'Running' : 'Stopped'}
+                  color={status?.running ? 'success' : 'default'}
+                />
+                <Button
+                  variant="contained"
+                  onClick={handleAutomationToggle}
+                  disabled={actionLoading === 'automation'}
+                  startIcon={
+                    actionLoading === 'automation' ? (
+                      <CircularProgress size={20} />
+                    ) : status?.running ? (
+                      <StopIcon />
+                    ) : (
+                      <StartIcon />
+                    )
+                  }
+                >
+                  {status?.running ? 'Stop' : 'Start'} Automation
+                </Button>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Last Playlist Update: {formatDateTime(status?.last_playlist_update)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Next Playlist Update: {formatDateTime(status?.next_playlist_update)}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Quick Actions Card */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Quick Actions
+              </Typography>
+              <Box display="flex" flexDirection="column" gap={2}>
+                <Button
+                  variant="outlined"
+                  onClick={handleRefreshPlaylist}
+                  disabled={actionLoading === 'playlist'}
+                  startIcon={
+                    actionLoading === 'playlist' ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      <RefreshIcon />
+                    )
+                  }
+                  fullWidth
+                >
+                  Refresh M3U Playlist
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleDiscoverStreams}
+                  disabled={actionLoading === 'discover'}
+                  startIcon={
+                    actionLoading === 'discover' ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      <DiscoverIcon />
+                    )
+                  }
+                  fullWidth
+                >
+                  Discover & Assign Streams
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleRunCycle}
+                  disabled={actionLoading === 'cycle'}
+                  startIcon={
+                    actionLoading === 'cycle' ? <CircularProgress size={20} /> : <StartIcon />
+                  }
+                  fullWidth
+                >
+                  Run Automation Cycle
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* System Overview Stats */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                System Overview
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={6} sm={3}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                    <ScheduleIcon color="action" fontSize="small" />
+                    <Typography variant="body2" color="text.secondary">
+                      Update Interval
+                    </Typography>
+                  </Box>
+                  <Typography variant="h5">
+                    {status?.config?.playlist_update_interval_minutes || 5}m
+                  </Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                    <CheckIcon color="success" fontSize="small" />
+                    <Typography variant="body2" color="text.secondary">
+                      Status
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={status?.running ? 'Running' : 'Stopped'}
+                    color={status?.running ? 'success' : 'default'}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                    <TrendingIcon color="action" fontSize="small" />
+                    <Typography variant="body2" color="text.secondary">
+                      Recent Activity
+                    </Typography>
+                  </Box>
+                  <Typography variant="h5">
+                    {status?.recent_changelog?.length || 0}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
+                  <Box display="flex" alignItems="center" gap={1} mb={0.5}>
+                    <RefreshIcon color="action" fontSize="small" />
+                    <Typography variant="body2" color="text.secondary">
+                      Last Update
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2">
+                    {status?.last_playlist_update 
+                      ? new Date(status.last_playlist_update).toLocaleTimeString()
+                      : 'Never'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Configuration Overview Card */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Configuration
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Typography variant="body2" color="text.secondary">
+                    Playlist Update Interval
+                  </Typography>
+                  <Typography variant="body1">
+                    {status?.config?.playlist_update_interval_minutes || 5} minutes
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Typography variant="body2" color="text.secondary">
+                    Global Check Interval
+                  </Typography>
+                  <Typography variant="body1">
+                    {status?.config?.global_check_interval_hours || 24} hours
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <Typography variant="body2" color="text.secondary">
+                    Enabled Features
+                  </Typography>
+                  <Typography variant="body1">
+                    {Object.entries(status?.config?.enabled_features || {})
+                      .filter(([_, enabled]) => enabled)
+                      .map(([feature, _]) => feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
+                      .join(', ') || 'None'}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Recent Activity Card */}
+        <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Recent Activity
+              </Typography>
+              {status?.recent_changelog?.length > 0 ? (
+                <Box>
+                  {status.recent_changelog.slice(0, 10).map((entry, index) => (
+                    <Box key={index}>
+                      {index > 0 && <Divider sx={{ my: 1.5 }} />}
+                      <Box display="flex" alignItems="flex-start" gap={1}>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography variant="body2" fontWeight="medium">
+                            {entry.action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {formatDateTime(entry.timestamp)}
+                          </Typography>
+                          {formatActivityDetails(entry) && (
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                              {formatActivityDetails(entry)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No recent activity
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+}
+
+export default Dashboard;
