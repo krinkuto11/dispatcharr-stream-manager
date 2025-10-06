@@ -1,7 +1,7 @@
 {
   "name": "dispatcharr-stream-manager-ui",
   "version": "1.0.0",
-  "description": "React frontend for Dispatcharr Stream Manager",
+  "description": "React frontend for StreamFlow for Dispatcharr",
   "main": "src/index.js",
   "scripts": {
     "start": "react-scripts start",

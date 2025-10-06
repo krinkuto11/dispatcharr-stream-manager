@@ -334,7 +334,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   return (
     <Box maxWidth="md" mx="auto" p={3}>
       <Typography variant="h4" gutterBottom align="center">
-        Dispatcharr Stream Manager Setup
+        StreamFlow for Dispatcharr Setup
       </Typography>
       
       {error && (
