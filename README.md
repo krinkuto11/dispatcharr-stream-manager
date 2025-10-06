@@ -1,6 +1,10 @@
 # Dispatcharr Stream Manager
 
 Automated stream management system for Dispatcharr IPTV services with intelligent quality checking and automatic stream reordering.
+1. Updates playlists
+2. Adds Streams to channels via Regex
+3. Checks streams
+4. Reorders the streams to ensure the best ones are first
 
 ## Quick Deployment
 
