@@ -1,6 +1,6 @@
-# Dispatcharr Stream Manager - Documentation
+# StreamFlow for Dispatcharr - Documentation
 
-This directory contains detailed documentation for the Dispatcharr Stream Manager.
+This directory contains detailed documentation for StreamFlow for Dispatcharr.
 
 ## Documentation Files
 
@@ -14,4 +14,4 @@ For quick deployment instructions, see the main [README.md](../README.md) in the
 
 ## Overview
 
-Dispatcharr Stream Manager is an automated stream management system for Dispatcharr IPTV services with intelligent quality checking and automatic stream reordering.
+StreamFlow for Dispatcharr is an automated stream management system for Dispatcharr IPTV services with intelligent quality checking and automatic stream reordering.

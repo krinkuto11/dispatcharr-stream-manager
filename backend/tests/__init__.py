@@ -1,1 +1,1 @@
-"""Unit tests for Dispatcharr Stream Manager."""
+"""Unit tests for StreamFlow for Dispatcharr."""

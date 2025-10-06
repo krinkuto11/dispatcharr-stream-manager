@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Web API Server for Dispatcharr Stream Manager
+Web API Server for StreamFlow for Dispatcharr
 
 Provides REST API endpoints for the React frontend to interact with
 the automated stream management system.
@@ -63,7 +63,7 @@ def root():
     except FileNotFoundError:
         # Fallback to API info if frontend not built
         return jsonify({
-            "message": "Dispatcharr Stream Manager API",
+            "message": "StreamFlow for Dispatcharr API",
             "version": "1.0",
             "endpoints": {
                 "health": "/api/health",
@@ -758,14 +758,14 @@ def serve_frontend(path):
 if __name__ == '__main__':
     import argparse
     
-    parser = argparse.ArgumentParser(description='Dispatcharr Stream Manager Web API')
+    parser = argparse.ArgumentParser(description='StreamFlow for Dispatcharr Web API')
     parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
     parser.add_argument('--port', type=int, default=5000, help='Port to bind to')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     
     args = parser.parse_args()
     
-    logging.info(f"Starting Dispatcharr Stream Manager Web API on {args.host}:{args.port}")
+    logging.info(f"Starting StreamFlow for Dispatcharr Web API on {args.host}:{args.port}")
     
     # Auto-start stream checker service if enabled
     try:
