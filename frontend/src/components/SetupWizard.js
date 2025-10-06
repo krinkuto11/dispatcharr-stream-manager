@@ -33,7 +33,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
-import { setupAPI, automationAPI, channelsAPI, regexAPI } from '../services/api';
+import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI } from '../services/api';
 
 const steps = [
   {
@@ -71,6 +71,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     }
   });
 
+  // Dispatcharr configuration state
+  const [dispatcharrConfig, setDispatcharrConfig] = useState({
+    base_url: '',
+    username: '',
+    password: '',
+    has_password: false
+  });
+  const [connectionTestResult, setConnectionTestResult] = useState(null);
+
   // Channel configuration state
   const [channels, setChannels] = useState([]);
   const [patterns, setPatterns] = useState({});
@@ -103,7 +112,19 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
         setActiveStep(0); // Stay at connection check
       }
     }
+    
+    // Load Dispatcharr configuration
+    loadDispatcharrConfig();
   }, [initialSetupStatus]);
+
+  const loadDispatcharrConfig = async () => {
+    try {
+      const response = await dispatcharrAPI.getConfig();
+      setDispatcharrConfig(response.data);
+    } catch (err) {
+      console.error('Failed to load Dispatcharr config:', err);
+    }
+  };
 
   const refreshSetupStatus = async () => {
     try {
@@ -322,6 +343,51 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     }
   };
 
+  const handleDispatcharrConfigChange = (field, value) => {
+    setDispatcharrConfig(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    // Clear connection test result when config changes
+    setConnectionTestResult(null);
+  };
+
+  const handleSaveDispatcharrConfig = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      await dispatcharrAPI.updateConfig(dispatcharrConfig);
+      // Refresh setup status to check connection
+      await refreshSetupStatus();
+      setConnectionTestResult({ success: true, message: 'Configuration saved successfully' });
+    } catch (err) {
+      console.error('Failed to save Dispatcharr config:', err);
+      setError('Failed to save Dispatcharr configuration');
+      setConnectionTestResult({ success: false, message: 'Failed to save configuration' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await dispatcharrAPI.testConnection(dispatcharrConfig);
+      setConnectionTestResult(response.data);
+      if (response.data.success) {
+        // If test successful, refresh setup status
+        await refreshSetupStatus();
+      }
+    } catch (err) {
+      console.error('Connection test failed:', err);
+      const errorMsg = err.response?.data?.error || 'Connection test failed';
+      setConnectionTestResult({ success: false, error: errorMsg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
@@ -354,34 +420,87 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                   
                   {index === 0 && (
                     <Box sx={{ mt: 2 }}>
+                      <Typography variant="h6" gutterBottom>
+                        Dispatcharr Connection Configuration
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Configure your Dispatcharr instance connection details. These settings will be saved to your environment configuration.
+                      </Typography>
+
                       {setupStatus?.dispatcharr_connection ? (
                         <Alert severity="success" sx={{ mb: 2 }}>
                           Successfully connected to Dispatcharr
                         </Alert>
                       ) : (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                          Cannot connect to Dispatcharr. Please check your .env configuration.
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                          Not connected to Dispatcharr. Please configure and test your connection below.
+                        </Alert>
+                      )}
+
+                      {connectionTestResult && (
+                        <Alert 
+                          severity={connectionTestResult.success ? "success" : "error"} 
+                          sx={{ mb: 2 }}
+                          onClose={() => setConnectionTestResult(null)}
+                        >
+                          {connectionTestResult.message || connectionTestResult.error}
                         </Alert>
                       )}
                       
+                      <TextField
+                        label="Dispatcharr Base URL"
+                        value={dispatcharrConfig.base_url}
+                        onChange={(e) => handleDispatcharrConfigChange('base_url', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder="http://your-dispatcharr-instance.com:9191"
+                        helperText="The base URL of your Dispatcharr instance (e.g., http://localhost:9191)"
+                      />
+                      
+                      <TextField
+                        label="Username"
+                        value={dispatcharrConfig.username}
+                        onChange={(e) => handleDispatcharrConfigChange('username', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder="your-username"
+                      />
+                      
+                      <TextField
+                        label="Password"
+                        type="password"
+                        value={dispatcharrConfig.password}
+                        onChange={(e) => handleDispatcharrConfigChange('password', e.target.value)}
+                        fullWidth
+                        margin="normal"
+                        placeholder={dispatcharrConfig.has_password ? "••••••••" : "your-password"}
+                        helperText={dispatcharrConfig.has_password && !dispatcharrConfig.password ? "Leave empty to keep existing password" : ""}
+                      />
+
                       {setupStatus?.has_channels ? (
-                        <Alert severity="success" sx={{ mb: 2 }}>
+                        <Alert severity="success" sx={{ mb: 2, mt: 2 }}>
                           Channels loaded successfully
                         </Alert>
-                      ) : (
-                        <Alert severity="warning" sx={{ mb: 2 }}>
+                      ) : setupStatus?.dispatcharr_connection && (
+                        <Alert severity="warning" sx={{ mb: 2, mt: 2 }}>
                           No channels found. You may need to import channels first.
                         </Alert>
                       )}
                       
-                      <Box sx={{ mt: 2 }}>
+                      <Box sx={{ mt: 3, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                         <Button
-                          variant="contained"
-                          onClick={handleNext}
-                          disabled={!setupStatus?.dispatcharr_connection}
-                          sx={{ mr: 1 }}
+                          variant="outlined"
+                          onClick={handleTestConnection}
+                          disabled={loading || !dispatcharrConfig.base_url || !dispatcharrConfig.username}
                         >
-                          Continue
+                          {loading ? <CircularProgress size={20} /> : 'Test Connection'}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={handleSaveDispatcharrConfig}
+                          disabled={loading || !dispatcharrConfig.base_url || !dispatcharrConfig.username}
+                        >
+                          {loading ? <CircularProgress size={20} /> : 'Save Configuration'}
                         </Button>
                         <Button
                           variant="outlined"
@@ -389,6 +508,13 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                           disabled={loading}
                         >
                           {loading ? <CircularProgress size={20} /> : 'Refresh Status'}
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={handleNext}
+                          disabled={!setupStatus?.dispatcharr_connection}
+                        >
+                          Continue
                         </Button>
                       </Box>
                     </Box>
