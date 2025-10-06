@@ -1,10 +1,8 @@
 services:
   stream-checker:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/krinkuto11/streamflow:latest
     ports:
-      - "3000:5000"   # Single port for both frontend and backend
+      - "5000:5000"   # Single port for both frontend and backend
     volumes:
       - /srv/docker/databases/stream_checker:/app/data
     env_file:
@@ -26,7 +24,3 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
-
-volumes:
-  csv_data:
-  logs_data:
