@@ -478,6 +478,19 @@ class StreamCheckQueue:
         logging.info(f"Added {added}/{len(channel_ids)} channels to checking queue")
         return added
     
+    def remove_from_completed(self, channel_id: int):
+        """Remove a channel from the completed set to allow re-queueing.
+        
+        This is used when a channel receives new streams and needs to be
+        checked again, even if it was previously completed.
+        """
+        with self.lock:
+            if channel_id in self.completed:
+                self.completed.discard(channel_id)
+                logging.debug(f"Removed channel {channel_id} from completed set")
+                return True
+        return False
+    
     def get_next_channel(self, timeout: float = 1.0) -> Optional[int]:
         """Get the next channel to check."""
         try:
@@ -739,6 +752,11 @@ class StreamCheckerService:
         channels_to_queue = self.update_tracker.get_and_clear_channels_needing_check(max_channels)
         
         if channels_to_queue:
+            # Remove channels from completed set to allow re-queueing
+            # This is necessary when channels receive new streams after being checked
+            for channel_id in channels_to_queue:
+                self.check_queue.remove_from_completed(channel_id)
+            
             self.check_queue.add_channels(channels_to_queue, priority=10)
     
     def _check_global_schedule(self):
