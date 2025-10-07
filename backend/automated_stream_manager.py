@@ -292,15 +292,39 @@ class AutomatedStreamManager:
             streams_before = get_streams(log_result=False) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             before_stream_ids = {s.get('id'): s.get('name', '') for s in streams_before if isinstance(s, dict) and s.get('id')}
             
-            # Perform refresh - check if we need to filter by enabled accounts
-            enabled_accounts = self.config.get("enabled_m3u_accounts", [])
-            if enabled_accounts:
-                # Refresh only enabled accounts
-                for account_id in enabled_accounts:
-                    logging.info(f"Refreshing M3U account {account_id}")
-                    refresh_m3u_playlists(account_id=account_id)
+            # Get all M3U accounts and filter out "custom" account
+            all_accounts = get_m3u_accounts()
+            if all_accounts:
+                # Filter out "custom" account (it doesn't need refresh as it's for locally added streams)
+                non_custom_accounts = [
+                    acc for acc in all_accounts
+                    if not (acc.get('name', '').lower() == 'custom' or 
+                           (acc.get('server_url') is None and acc.get('file_path') is None))
+                ]
+                
+                # Perform refresh - check if we need to filter by enabled accounts
+                enabled_accounts = self.config.get("enabled_m3u_accounts", [])
+                if enabled_accounts:
+                    # Refresh only enabled accounts (and exclude custom)
+                    non_custom_ids = [acc.get('id') for acc in non_custom_accounts if acc.get('id') is not None]
+                    accounts_to_refresh = [acc_id for acc_id in enabled_accounts if acc_id in non_custom_ids]
+                    for account_id in accounts_to_refresh:
+                        logging.info(f"Refreshing M3U account {account_id}")
+                        refresh_m3u_playlists(account_id=account_id)
+                    if len(enabled_accounts) != len(accounts_to_refresh):
+                        logging.info(f"Skipped {len(enabled_accounts) - len(accounts_to_refresh)} account(s) (custom or invalid)")
+                else:
+                    # Refresh all non-custom accounts
+                    for account in non_custom_accounts:
+                        account_id = account.get('id')
+                        if account_id is not None:
+                            logging.info(f"Refreshing M3U account {account_id}")
+                            refresh_m3u_playlists(account_id=account_id)
+                    if len(all_accounts) != len(non_custom_accounts):
+                        logging.info(f"Skipped {len(all_accounts) - len(non_custom_accounts)} 'custom' account(s)")
             else:
-                # Refresh all accounts (default behavior)
+                # Fallback: if we can't get accounts, refresh all (legacy behavior)
+                logging.warning("Could not fetch M3U accounts, refreshing all as fallback")
                 refresh_m3u_playlists()
             
             # Get streams after refresh - log this one since it shows the final result
