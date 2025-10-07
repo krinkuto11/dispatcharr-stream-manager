@@ -208,6 +208,11 @@ class RegexChannelMatcher:
             for pattern in config.get("regex", []):
                 search_pattern = pattern if case_sensitive else pattern.lower()
                 
+                # Convert literal spaces in pattern to flexible whitespace regex (\s+)
+                # This allows matching streams with different whitespace characters
+                # (non-breaking spaces, tabs, double spaces, etc.)
+                search_pattern = re.sub(r' +', r'\\s+', search_pattern)
+                
                 try:
                     if re.search(search_pattern, search_name):
                         matches.append(channel_id)
