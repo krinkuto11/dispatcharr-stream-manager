@@ -143,7 +143,7 @@ function ChannelConfiguration() {
       handleCloseDialog();
       await loadData();
     } catch (err) {
-      setError('Failed to save pattern');
+      setError('Failed to save pattern: ' + (err.response?.data?.error || err.message));
     }
   };
 

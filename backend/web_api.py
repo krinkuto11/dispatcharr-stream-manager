@@ -22,8 +22,33 @@ from stream_checker_service import get_stream_checker_service
 
 
 
+# Custom logging filter to exclude HTTP-related logs
+class HTTPLogFilter(logging.Filter):
+    """Filter out HTTP-related log messages."""
+    def filter(self, record):
+        # Exclude messages containing HTTP request/response indicators
+        message = record.getMessage().lower()
+        http_indicators = [
+            'http request',
+            'http response',
+            'status code',
+            'get /',
+            'post /',
+            'put /',
+            'delete /',
+            'patch /',
+            '" with',
+            '- - [',  # Common HTTP access log format
+            'werkzeug',
+        ]
+        return not any(indicator in message for indicator in http_indicators)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Apply HTTP filter to all handlers
+for handler in logging.root.handlers:
+    handler.addFilter(HTTPLogFilter())
 
 # Configuration directory - persisted via Docker volume
 CONFIG_DIR = Path(os.environ.get('CONFIG_DIR', '/app/data'))
@@ -228,6 +253,10 @@ def add_regex_pattern():
         )
         
         return jsonify({"message": "Pattern added/updated successfully"})
+    except ValueError as e:
+        # Validation errors (e.g., invalid regex) should return 400
+        logging.warning(f"Validation error adding regex pattern: {e}")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.error(f"Error adding regex pattern: {e}")
         return jsonify({"error": str(e)}), 500
@@ -265,6 +294,10 @@ def test_regex_pattern():
         
         search_pattern = pattern if case_sensitive else pattern.lower()
         search_name = stream_name if case_sensitive else stream_name.lower()
+        
+        # Convert literal spaces in pattern to flexible whitespace regex (\s+)
+        # This allows matching streams with different whitespace characters
+        search_pattern = re.sub(r' +', r'\\s+', search_pattern)
         
         try:
             match = re.search(search_pattern, search_name)
@@ -344,6 +377,10 @@ def test_regex_pattern_live():
                 
                 for pattern in regex_patterns:
                     search_pattern = pattern if case_sensitive else pattern.lower()
+                    
+                    # Convert literal spaces in pattern to flexible whitespace regex (\s+)
+                    # This allows matching streams with different whitespace characters
+                    search_pattern = re.sub(r' +', r'\\s+', search_pattern)
                     
                     try:
                         if re.search(search_pattern, search_name):
@@ -438,6 +475,35 @@ def refresh_playlist():
             return jsonify({"error": "Playlist refresh failed"}), 500
     except Exception as e:
         logging.error(f"Error refreshing playlist: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/m3u-accounts', methods=['GET'])
+def get_m3u_accounts_endpoint():
+    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist."""
+    try:
+        from api_utils import get_m3u_accounts, get_streams
+        accounts = get_m3u_accounts()
+        
+        if accounts is None:
+            return jsonify({"error": "Failed to fetch M3U accounts"}), 500
+        
+        # Check if there are any custom streams
+        all_streams = get_streams(log_result=False)
+        has_custom_streams = any(s.get('is_custom', False) for s in all_streams)
+        
+        # Filter out "custom" M3U account if there are no custom streams
+        if not has_custom_streams:
+            # Filter accounts by checking name or other identifiers
+            # Look for accounts named "custom" (case-insensitive) or with null/empty server_url
+            accounts = [
+                acc for acc in accounts 
+                if not (acc.get('name', '').lower() == 'custom' or 
+                       (acc.get('server_url') is None and acc.get('file_path') is None))
+            ]
+        
+        return jsonify(accounts)
+    except Exception as e:
+        logging.error(f"Error fetching M3U accounts: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/setup-wizard', methods=['GET'])
