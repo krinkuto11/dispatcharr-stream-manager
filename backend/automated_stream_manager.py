@@ -233,6 +233,15 @@ class RegexChannelMatcher:
         self._save_patterns(self.channel_patterns)
         logging.info(f"Added/updated pattern for channel {channel_id}: {name}")
     
+    def reload_patterns(self):
+        """Reload patterns from the config file.
+        
+        This is useful when patterns have been updated by another process
+        and we need to ensure we're using the latest patterns.
+        """
+        self.channel_patterns = self._load_patterns()
+        logging.debug("Reloaded regex patterns from config file")
+    
     def match_stream_to_channels(self, stream_name: str) -> List[str]:
         """Match a stream name to channel IDs based on regex patterns."""
         matches = []
@@ -455,6 +464,9 @@ class AutomatedStreamManager:
             return {}
         
         try:
+            # Reload patterns to ensure we have the latest changes
+            self.regex_matcher.reload_patterns()
+            
             logging.info("Starting stream discovery and assignment...")
             
             # Get all available streams (don't log, we already logged during refresh)
