@@ -3,10 +3,10 @@ name: Build and Push Docker Image to GHCR
 on:
   release:
     types: [published]
-  pull_request:
-    branches:
-      - main
-      - beta
+  #pull_request:
+    #branches:
+      #- main
+      #- beta
 
 jobs:
   build:
