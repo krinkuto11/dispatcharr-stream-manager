@@ -347,7 +347,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       await loadChannelsAndPatterns();
       handleClosePatternDialog();
     } catch (err) {
-      setError('Failed to save pattern');
+      setError('Failed to save pattern: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
     }
