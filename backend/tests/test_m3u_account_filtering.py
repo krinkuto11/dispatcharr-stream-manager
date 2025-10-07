@@ -103,6 +103,26 @@ class TestM3UAccountFiltering(unittest.TestCase):
             self.assertEqual(mock_refresh.call_count, 2)
             # get_streams should not be called when changelog is disabled
             mock_get_streams.assert_not_called()
+    
+    @patch('automated_stream_manager.refresh_m3u_playlists')
+    @patch('automated_stream_manager.get_streams')
+    def test_refresh_excludes_custom_streams(self, mock_get_streams, mock_refresh):
+        """Test that custom streams are excluded when fetching streams during refresh."""
+        mock_get_streams.return_value = []
+        
+        with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
+            manager = AutomatedStreamManager()
+            manager.config['enabled_m3u_accounts'] = []
+            manager.config['enabled_features']['changelog_tracking'] = True
+            manager.refresh_playlists()
+            
+            # Verify get_streams was called with exclude_custom=True
+            # It should be called twice: before and after refresh
+            self.assertEqual(mock_get_streams.call_count, 2)
+            for call_obj in mock_get_streams.call_args_list:
+                # Check that exclude_custom=True was passed
+                self.assertIn('exclude_custom', call_obj.kwargs)
+                self.assertTrue(call_obj.kwargs['exclude_custom'])
 
 
 class TestM3UAccountConfiguration(unittest.TestCase):

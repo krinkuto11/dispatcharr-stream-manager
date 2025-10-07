@@ -418,7 +418,7 @@ def get_m3u_accounts() -> Optional[List[Dict[str, Any]]]:
     url = f"{_get_base_url()}/api/m3u/accounts/"
     return fetch_data_from_url(url)
 
-def get_streams(log_result: bool = True) -> List[Dict[str, Any]]:
+def get_streams(log_result: bool = True, exclude_custom: bool = False) -> List[Dict[str, Any]]:
     """
     Fetch all available streams with pagination support.
     
@@ -428,6 +428,8 @@ def get_streams(log_result: bool = True) -> List[Dict[str, Any]]:
     Parameters:
         log_result (bool): Whether to log the number of fetched streams.
             Default is True. Set to False to avoid duplicate log entries.
+        exclude_custom (bool): Whether to exclude custom streams (is_custom=True).
+            Default is False. Set to True to only include streams from M3U accounts.
     
     Returns:
         List[Dict[str, Any]]: List of all stream objects.
@@ -453,8 +455,12 @@ def get_streams(log_result: bool = True) -> List[Dict[str, Any]]:
                 all_streams.extend(response)
             break
     
+    # Filter out custom streams if requested
+    if exclude_custom:
+        all_streams = [s for s in all_streams if not s.get('is_custom', False)]
+    
     if log_result:
-        logging.info(f"Fetched {len(all_streams)} total streams")
+        logging.info(f"Fetched {len(all_streams)} total streams{' (excluding custom streams)' if exclude_custom else ''}")
     return all_streams
 
 def create_channel_from_stream(

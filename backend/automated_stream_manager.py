@@ -287,9 +287,9 @@ class AutomatedStreamManager:
             
             logging.info("Starting M3U playlist refresh...")
             
-            # Get streams before refresh
+            # Get streams before refresh (exclude custom streams to only track M3U account streams)
             from api_utils import get_streams
-            streams_before = get_streams(log_result=False) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
+            streams_before = get_streams(log_result=False, exclude_custom=True) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             before_stream_ids = {s.get('id'): s.get('name', '') for s in streams_before if isinstance(s, dict) and s.get('id')}
             
             # Perform refresh - check if we need to filter by enabled accounts
@@ -303,8 +303,8 @@ class AutomatedStreamManager:
                 # Refresh all accounts (default behavior)
                 refresh_m3u_playlists()
             
-            # Get streams after refresh - log this one since it shows the final result
-            streams_after = get_streams(log_result=True) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
+            # Get streams after refresh - log this one since it shows the final result (exclude custom streams)
+            streams_after = get_streams(log_result=True, exclude_custom=True) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             after_stream_ids = {s.get('id'): s.get('name', '') for s in streams_after if isinstance(s, dict) and s.get('id')}
             
             self.last_playlist_update = datetime.now()
@@ -394,8 +394,8 @@ class AutomatedStreamManager:
         try:
             logging.info("Starting stream discovery and assignment...")
             
-            # Get all available streams (don't log, we already logged during refresh)
-            all_streams = get_streams(log_result=False)
+            # Get all available streams (exclude custom streams, only M3U account streams)
+            all_streams = get_streams(log_result=False, exclude_custom=True)
             if not all_streams:
                 logging.warning("No streams found")
                 return {}
