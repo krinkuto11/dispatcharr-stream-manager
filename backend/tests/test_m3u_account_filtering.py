@@ -57,9 +57,14 @@ class TestM3UAccountFiltering(unittest.TestCase):
     
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
-    def test_refresh_all_accounts_when_none_selected(self, mock_get_streams, mock_refresh):
+    @patch('automated_stream_manager.get_m3u_accounts')
+    def test_refresh_all_accounts_when_none_selected(self, mock_get_accounts, mock_get_streams, mock_refresh):
         """Test that all accounts are refreshed when enabled_m3u_accounts is empty."""
         mock_get_streams.return_value = []
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Account 1', 'server_url': 'http://example.com/playlist1.m3u'},
+            {'id': 2, 'name': 'Account 2', 'server_url': 'http://example.com/playlist2.m3u'}
+        ]
         
         with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
             manager = AutomatedStreamManager()
@@ -67,14 +72,22 @@ class TestM3UAccountFiltering(unittest.TestCase):
             manager.config['enabled_features']['changelog_tracking'] = False
             manager.refresh_playlists()
             
-            # Should call refresh without account_id (refresh all)
-            mock_refresh.assert_called_once_with()
+            # Should call refresh for each non-custom account
+            expected_calls = [call(account_id=1), call(account_id=2)]
+            mock_refresh.assert_has_calls(expected_calls, any_order=True)
+            self.assertEqual(mock_refresh.call_count, 2)
     
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
-    def test_refresh_only_enabled_accounts(self, mock_get_streams, mock_refresh):
+    @patch('automated_stream_manager.get_m3u_accounts')
+    def test_refresh_only_enabled_accounts(self, mock_get_accounts, mock_get_streams, mock_refresh):
         """Test that only enabled accounts are refreshed when some are selected."""
         mock_get_streams.return_value = []
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Account 1', 'server_url': 'http://example.com/playlist1.m3u'},
+            {'id': 3, 'name': 'Account 3', 'server_url': 'http://example.com/playlist3.m3u'},
+            {'id': 5, 'name': 'Account 5', 'server_url': 'http://example.com/playlist5.m3u'}
+        ]
         
         with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
             manager = AutomatedStreamManager()
@@ -85,13 +98,19 @@ class TestM3UAccountFiltering(unittest.TestCase):
             
             # Should call refresh for each enabled account
             expected_calls = [call(account_id=acc_id) for acc_id in enabled_accounts]
-            mock_refresh.assert_has_calls(expected_calls)
+            mock_refresh.assert_has_calls(expected_calls, any_order=True)
             self.assertEqual(mock_refresh.call_count, len(enabled_accounts))
     
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
-    def test_refresh_with_changelog_disabled(self, mock_get_streams, mock_refresh):
+    @patch('automated_stream_manager.get_m3u_accounts')
+    def test_refresh_with_changelog_disabled(self, mock_get_accounts, mock_get_streams, mock_refresh):
         """Test that refresh works correctly when changelog tracking is disabled."""
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Account 1', 'server_url': 'http://example.com/playlist1.m3u'},
+            {'id': 2, 'name': 'Account 2', 'server_url': 'http://example.com/playlist2.m3u'}
+        ]
+        
         with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
             manager = AutomatedStreamManager()
             manager.config['enabled_m3u_accounts'] = [1, 2]
