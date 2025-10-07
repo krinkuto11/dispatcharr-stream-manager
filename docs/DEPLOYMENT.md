@@ -186,3 +186,5 @@ Images are automatically built and pushed to GHCR via GitHub Actions when a new 
 - `ghcr.io/krinkuto11/streamflow:<major>` - Major version only (e.g., 1)
 
 Note: Images are only pushed to GHCR when creating releases, not on every push or pull request. This ensures only tested and stable versions are published to the registry.
+
+**Creating a Release**: See [Release Guide](../.github/RELEASE_GUIDE.md) for instructions on how to create and publish a release.
