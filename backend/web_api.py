@@ -475,13 +475,27 @@ def refresh_playlist():
 
 @app.route('/api/m3u-accounts', methods=['GET'])
 def get_m3u_accounts_endpoint():
-    """Get all M3U accounts from Dispatcharr."""
+    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist."""
     try:
-        from api_utils import get_m3u_accounts
+        from api_utils import get_m3u_accounts, get_streams
         accounts = get_m3u_accounts()
         
         if accounts is None:
             return jsonify({"error": "Failed to fetch M3U accounts"}), 500
+        
+        # Check if there are any custom streams
+        all_streams = get_streams(log_result=False)
+        has_custom_streams = any(s.get('is_custom', False) for s in all_streams)
+        
+        # Filter out "custom" M3U account if there are no custom streams
+        if not has_custom_streams:
+            # Filter accounts by checking name or other identifiers
+            # Look for accounts named "custom" (case-insensitive) or with null/empty server_url
+            accounts = [
+                acc for acc in accounts 
+                if not (acc.get('name', '').lower() == 'custom' or 
+                       (acc.get('server_url') is None and acc.get('file_path') is None))
+            ]
         
         return jsonify(accounts)
     except Exception as e:
