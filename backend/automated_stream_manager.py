@@ -30,8 +30,30 @@ from api_utils import (
 
 
 
+# Custom logging filter to exclude HTTP-related logs
+class HTTPLogFilter(logging.Filter):
+    """Filter out HTTP-related log messages."""
+    def filter(self, record):
+        message = record.getMessage().lower()
+        http_indicators = [
+            'http request',
+            'http response',
+            'status code',
+            'get /',
+            'post /',
+            'put /',
+            'delete /',
+            'patch /',
+            '" with',
+            '- - [',
+            'werkzeug',
+        ]
+        return not any(indicator in message for indicator in http_indicators)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+for handler in logging.root.handlers:
+    handler.addFilter(HTTPLogFilter())
 
 # Configuration directory - persisted via Docker volume
 CONFIG_DIR = Path(os.environ.get('CONFIG_DIR', '/app/data'))
