@@ -291,6 +291,10 @@ def test_regex_pattern():
         search_pattern = pattern if case_sensitive else pattern.lower()
         search_name = stream_name if case_sensitive else stream_name.lower()
         
+        # Convert literal spaces in pattern to flexible whitespace regex (\s+)
+        # This allows matching streams with different whitespace characters
+        search_pattern = re.sub(r' +', r'\\s+', search_pattern)
+        
         try:
             match = re.search(search_pattern, search_name)
             return jsonify({
@@ -369,6 +373,10 @@ def test_regex_pattern_live():
                 
                 for pattern in regex_patterns:
                     search_pattern = pattern if case_sensitive else pattern.lower()
+                    
+                    # Convert literal spaces in pattern to flexible whitespace regex (\s+)
+                    # This allows matching streams with different whitespace characters
+                    search_pattern = re.sub(r' +', r'\\s+', search_pattern)
                     
                     try:
                         if re.search(search_pattern, search_name):
