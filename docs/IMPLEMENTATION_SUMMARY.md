@@ -338,7 +338,9 @@ docker compose -f docker-compose.pr-test.yml up -d
 ### GitHub Actions
 
 **Workflow:** `.github/workflows/ci.yml`
-- Triggers: Push to main/beta, PRs
+- Triggers: 
+  - Release published (pushes to GHCR)
+  - Pull requests (builds only, no push)
 - Steps:
   1. Checkout code
   2. Setup Node.js 18
@@ -346,11 +348,15 @@ docker compose -f docker-compose.pr-test.yml up -d
   4. Build frontend
   5. Setup Docker Buildx
   6. Cache Docker layers
-  7. Login to GHCR
-  8. Build and push image
-- Output: `ghcr.io/krinkuto11/stream-checker:latest`
+  7. Login to GHCR (release only)
+  8. Build and push image (push only on release)
+- Output (on release): 
+  - `ghcr.io/krinkuto11/streamflow:latest`
+  - `ghcr.io/krinkuto11/streamflow:<version>` (e.g., v1.0.0)
+  - `ghcr.io/krinkuto11/streamflow:<major>.<minor>` (e.g., 1.0)
+  - `ghcr.io/krinkuto11/streamflow:<major>` (e.g., 1)
 
-**Status:** Should work without modification
+**Status:** Configured to push only on release
 
 ---
 
