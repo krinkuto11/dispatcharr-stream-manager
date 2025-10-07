@@ -184,8 +184,47 @@ class RegexChannelMatcher:
         with open(self.config_file, 'w') as f:
             json.dump(patterns, f, indent=2)
     
+    def validate_regex_patterns(self, patterns: List[str]) -> Tuple[bool, Optional[str]]:
+        """Validate a list of regex patterns.
+        
+        Args:
+            patterns: List of regex pattern strings to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message). If valid, error_message is None.
+        """
+        if not patterns:
+            return False, "At least one regex pattern is required"
+        
+        for pattern in patterns:
+            if not pattern or not isinstance(pattern, str):
+                return False, f"Pattern must be a non-empty string"
+            
+            try:
+                # Try to compile the pattern to check if it's valid
+                re.compile(pattern)
+            except re.error as e:
+                return False, f"Invalid regex pattern '{pattern}': {str(e)}"
+        
+        return True, None
+    
     def add_channel_pattern(self, channel_id: str, name: str, regex_patterns: List[str], enabled: bool = True):
-        """Add or update a channel pattern."""
+        """Add or update a channel pattern.
+        
+        Args:
+            channel_id: Channel ID
+            name: Channel name
+            regex_patterns: List of regex patterns
+            enabled: Whether the pattern is enabled
+            
+        Raises:
+            ValueError: If any regex pattern is invalid
+        """
+        # Validate patterns before saving
+        is_valid, error_msg = self.validate_regex_patterns(regex_patterns)
+        if not is_valid:
+            raise ValueError(error_msg)
+        
         self.channel_patterns["patterns"][str(channel_id)] = {
             "name": name,
             "regex": regex_patterns,
@@ -193,6 +232,15 @@ class RegexChannelMatcher:
         }
         self._save_patterns(self.channel_patterns)
         logging.info(f"Added/updated pattern for channel {channel_id}: {name}")
+    
+    def reload_patterns(self):
+        """Reload patterns from the config file.
+        
+        This is useful when patterns have been updated by another process
+        and we need to ensure we're using the latest patterns.
+        """
+        self.channel_patterns = self._load_patterns()
+        logging.debug("Reloaded regex patterns from config file")
     
     def match_stream_to_channels(self, stream_name: str) -> List[str]:
         """Match a stream name to channel IDs based on regex patterns."""
@@ -416,6 +464,9 @@ class AutomatedStreamManager:
             return {}
         
         try:
+            # Reload patterns to ensure we have the latest changes
+            self.regex_matcher.reload_patterns()
+            
             logging.info("Starting stream discovery and assignment...")
             
             # Get all available streams (don't log, we already logged during refresh)
