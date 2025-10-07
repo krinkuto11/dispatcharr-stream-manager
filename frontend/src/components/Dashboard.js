@@ -9,7 +9,10 @@ import {
   Box,
   CircularProgress,
   Alert,
-  Divider
+  Divider,
+  FormGroup,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import {
   PlayArrow as StartIcon,
@@ -20,7 +23,7 @@ import {
   Schedule as ScheduleIcon,
   TrendingUp as TrendingIcon
 } from '@mui/icons-material';
-import { automationAPI, streamAPI } from '../services/api';
+import { automationAPI, streamAPI, m3uAPI } from '../services/api';
 
 function Dashboard() {
   const [status, setStatus] = useState(null);
@@ -28,9 +31,12 @@ function Dashboard() {
   const [actionLoading, setActionLoading] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [m3uAccounts, setM3uAccounts] = useState([]);
+  const [selectedAccounts, setSelectedAccounts] = useState([]);
 
   useEffect(() => {
     loadStatus();
+    loadM3uAccounts();
     // Refresh status every 30 seconds
     const interval = setInterval(loadStatus, 30000);
     return () => clearInterval(interval);
@@ -40,11 +46,24 @@ function Dashboard() {
     try {
       const response = await automationAPI.getStatus();
       setStatus(response.data);
+      // Update selected accounts from config
+      const enabledAccounts = response.data?.config?.enabled_m3u_accounts || [];
+      setSelectedAccounts(enabledAccounts);
     } catch (err) {
       console.error('Failed to load status:', err);
       setError('Failed to load automation status');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadM3uAccounts = async () => {
+    try {
+      const response = await m3uAPI.getAccounts();
+      setM3uAccounts(response.data || []);
+    } catch (err) {
+      console.error('Failed to load M3U accounts:', err);
+      // Non-critical error, don't show to user
     }
   };
 
@@ -102,6 +121,30 @@ function Dashboard() {
       setError('Failed to run automation cycle');
     } finally {
       setActionLoading('');
+    }
+  };
+
+  const handleAccountToggle = async (accountId) => {
+    try {
+      const newSelectedAccounts = selectedAccounts.includes(accountId)
+        ? selectedAccounts.filter(id => id !== accountId)
+        : [...selectedAccounts, accountId];
+      
+      setSelectedAccounts(newSelectedAccounts);
+      
+      // Update config with new selection
+      const updatedConfig = {
+        ...status.config,
+        enabled_m3u_accounts: newSelectedAccounts
+      };
+      
+      await automationAPI.updateConfig(updatedConfig);
+      setSuccess('M3U account selection updated');
+      await loadStatus();
+    } catch (err) {
+      setError('Failed to update M3U account selection');
+      // Revert on error
+      await loadStatus();
     }
   };
 
@@ -357,6 +400,38 @@ function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* M3U Account Selection Card */}
+        {m3uAccounts.length > 0 && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  M3U Playlists
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Select which M3U accounts/playlists to include in the stream fetch pipeline. 
+                  {selectedAccounts.length === 0 && ' (All accounts enabled when none selected)'}
+                </Typography>
+                <FormGroup>
+                  {m3uAccounts.map((account) => (
+                    <FormControlLabel
+                      key={account.id}
+                      control={
+                        <Checkbox
+                          checked={selectedAccounts.length === 0 || selectedAccounts.includes(account.id)}
+                          onChange={() => handleAccountToggle(account.id)}
+                          disabled={actionLoading !== ''}
+                        />
+                      }
+                      label={`${account.name || `Account ${account.id}`} - ${account.url || 'No URL'}`}
+                    />
+                  ))}
+                </FormGroup>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         {/* Recent Activity Card */}
         <Grid item xs={12}>

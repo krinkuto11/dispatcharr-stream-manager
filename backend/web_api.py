@@ -22,8 +22,33 @@ from stream_checker_service import get_stream_checker_service
 
 
 
+# Custom logging filter to exclude HTTP-related logs
+class HTTPLogFilter(logging.Filter):
+    """Filter out HTTP-related log messages."""
+    def filter(self, record):
+        # Exclude messages containing HTTP request/response indicators
+        message = record.getMessage().lower()
+        http_indicators = [
+            'http request',
+            'http response',
+            'status code',
+            'get /',
+            'post /',
+            'put /',
+            'delete /',
+            'patch /',
+            '" with',
+            '- - [',  # Common HTTP access log format
+            'werkzeug',
+        ]
+        return not any(indicator in message for indicator in http_indicators)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Apply HTTP filter to all handlers
+for handler in logging.root.handlers:
+    handler.addFilter(HTTPLogFilter())
 
 # Configuration directory - persisted via Docker volume
 CONFIG_DIR = Path(os.environ.get('CONFIG_DIR', '/app/data'))
@@ -438,6 +463,21 @@ def refresh_playlist():
             return jsonify({"error": "Playlist refresh failed"}), 500
     except Exception as e:
         logging.error(f"Error refreshing playlist: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/m3u-accounts', methods=['GET'])
+def get_m3u_accounts_endpoint():
+    """Get all M3U accounts from Dispatcharr."""
+    try:
+        from api_utils import get_m3u_accounts
+        accounts = get_m3u_accounts()
+        
+        if accounts is None:
+            return jsonify({"error": "Failed to fetch M3U accounts"}), 500
+        
+        return jsonify(accounts)
+    except Exception as e:
+        logging.error(f"Error fetching M3U accounts: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/setup-wizard', methods=['GET'])

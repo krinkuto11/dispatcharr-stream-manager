@@ -30,8 +30,30 @@ from api_utils import (
 
 
 
+# Custom logging filter to exclude HTTP-related logs
+class HTTPLogFilter(logging.Filter):
+    """Filter out HTTP-related log messages."""
+    def filter(self, record):
+        message = record.getMessage().lower()
+        http_indicators = [
+            'http request',
+            'http response',
+            'status code',
+            'get /',
+            'post /',
+            'put /',
+            'delete /',
+            'patch /',
+            '" with',
+            '- - [',
+            'werkzeug',
+        ]
+        return not any(indicator in message for indicator in http_indicators)
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+for handler in logging.root.handlers:
+    handler.addFilter(HTTPLogFilter())
 
 # Configuration directory - persisted via Docker volume
 CONFIG_DIR = Path(os.environ.get('CONFIG_DIR', '/app/data'))
@@ -227,6 +249,7 @@ class AutomatedStreamManager:
         # Default configuration
         default_config = {
             "playlist_update_interval_minutes": 5,
+            "enabled_m3u_accounts": [],  # Empty list means all accounts enabled
             "enabled_features": {
                 "auto_playlist_update": True,
                 "auto_stream_discovery": True,
@@ -264,8 +287,16 @@ class AutomatedStreamManager:
             streams_before = get_streams(log_result=False) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             before_stream_ids = {s.get('id'): s.get('name', '') for s in streams_before if isinstance(s, dict) and s.get('id')}
             
-            # Perform refresh
-            refresh_m3u_playlists()
+            # Perform refresh - check if we need to filter by enabled accounts
+            enabled_accounts = self.config.get("enabled_m3u_accounts", [])
+            if enabled_accounts:
+                # Refresh only enabled accounts
+                for account_id in enabled_accounts:
+                    logging.info(f"Refreshing M3U account {account_id}")
+                    refresh_m3u_playlists(account_id=account_id)
+            else:
+                # Refresh all accounts (default behavior)
+                refresh_m3u_playlists()
             
             # Get streams after refresh - log this one since it shows the final result
             streams_after = get_streams(log_result=True) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
