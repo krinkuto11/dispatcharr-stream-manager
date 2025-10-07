@@ -253,6 +253,10 @@ def add_regex_pattern():
         )
         
         return jsonify({"message": "Pattern added/updated successfully"})
+    except ValueError as e:
+        # Validation errors (e.g., invalid regex) should return 400
+        logging.warning(f"Validation error adding regex pattern: {e}")
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         logging.error(f"Error adding regex pattern: {e}")
         return jsonify({"error": str(e)}), 500

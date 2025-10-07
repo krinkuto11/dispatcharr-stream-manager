@@ -184,8 +184,47 @@ class RegexChannelMatcher:
         with open(self.config_file, 'w') as f:
             json.dump(patterns, f, indent=2)
     
+    def validate_regex_patterns(self, patterns: List[str]) -> Tuple[bool, Optional[str]]:
+        """Validate a list of regex patterns.
+        
+        Args:
+            patterns: List of regex pattern strings to validate
+            
+        Returns:
+            Tuple of (is_valid, error_message). If valid, error_message is None.
+        """
+        if not patterns:
+            return False, "At least one regex pattern is required"
+        
+        for pattern in patterns:
+            if not pattern or not isinstance(pattern, str):
+                return False, f"Pattern must be a non-empty string"
+            
+            try:
+                # Try to compile the pattern to check if it's valid
+                re.compile(pattern)
+            except re.error as e:
+                return False, f"Invalid regex pattern '{pattern}': {str(e)}"
+        
+        return True, None
+    
     def add_channel_pattern(self, channel_id: str, name: str, regex_patterns: List[str], enabled: bool = True):
-        """Add or update a channel pattern."""
+        """Add or update a channel pattern.
+        
+        Args:
+            channel_id: Channel ID
+            name: Channel name
+            regex_patterns: List of regex patterns
+            enabled: Whether the pattern is enabled
+            
+        Raises:
+            ValueError: If any regex pattern is invalid
+        """
+        # Validate patterns before saving
+        is_valid, error_msg = self.validate_regex_patterns(regex_patterns)
+        if not is_valid:
+            raise ValueError(error_msg)
+        
         self.channel_patterns["patterns"][str(channel_id)] = {
             "name": name,
             "regex": regex_patterns,
