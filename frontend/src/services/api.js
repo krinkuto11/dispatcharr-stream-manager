@@ -60,6 +60,10 @@ export const streamAPI = {
   refreshPlaylist: (accountId) => api.post('/refresh-playlist', accountId ? { account_id: accountId } : {}),
 };
 
+export const m3uAPI = {
+  getAccounts: () => api.get('/m3u-accounts'),
+};
+
 export const streamCheckerAPI = {
   getStatus: () => api.get('/stream-checker/status'),
   start: () => api.post('/stream-checker/start'),

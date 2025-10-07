@@ -33,7 +33,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
-import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI, streamCheckerAPI } from '../services/api';
+import { setupAPI, automationAPI, channelsAPI, regexAPI, dispatcharrAPI, streamCheckerAPI, m3uAPI } from '../services/api';
 
 const steps = [
   {
@@ -63,6 +63,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     playlist_update_interval_minutes: 5,
     global_check_interval_hours: 24,
     concurrent_stream_checks: 2,
+    enabled_m3u_accounts: [],
     enabled_features: {
       auto_playlist_update: true,
       auto_stream_discovery: true,
@@ -100,6 +101,10 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     regex: [''],
     enabled: true
   });
+
+  // M3U accounts state
+  const [m3uAccounts, setM3uAccounts] = useState([]);
+  const [selectedM3uAccounts, setSelectedM3uAccounts] = useState([]);
 
   useEffect(() => {
     if (initialSetupStatus) {
@@ -285,13 +290,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   const loadChannelsAndPatterns = async () => {
     try {
       setLoading(true);
-      const [channelsResponse, patternsResponse] = await Promise.all([
+      const [channelsResponse, patternsResponse, m3uResponse] = await Promise.all([
         channelsAPI.getChannels(),
-        regexAPI.getPatterns()
+        regexAPI.getPatterns(),
+        m3uAPI.getAccounts().catch(() => ({ data: [] })) // Non-critical, provide empty array on error
       ]);
       
       setChannels(channelsResponse.data);
       setPatterns(patternsResponse.data);
+      setM3uAccounts(m3uResponse.data || []);
     } catch (err) {
       console.error('Failed to load channels and patterns:', err);
       setError('Failed to load channel data');
@@ -756,6 +763,40 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                           label="Changelog Tracking"
                         />
                       </FormGroup>
+                      
+                      {m3uAccounts.length > 0 && (
+                        <>
+                          <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                            M3U Playlists
+                          </Typography>
+                          
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Select which M3U accounts/playlists to include in the stream fetch pipeline.
+                            {selectedM3uAccounts.length === 0 && ' (All accounts enabled when none selected)'}
+                          </Typography>
+                          
+                          <FormGroup>
+                            {m3uAccounts.map((account) => (
+                              <FormControlLabel
+                                key={account.id}
+                                control={
+                                  <Switch
+                                    checked={selectedM3uAccounts.length === 0 || selectedM3uAccounts.includes(account.id)}
+                                    onChange={(e) => {
+                                      const newSelected = e.target.checked
+                                        ? [...selectedM3uAccounts, account.id]
+                                        : selectedM3uAccounts.filter(id => id !== account.id);
+                                      setSelectedM3uAccounts(newSelected);
+                                      handleConfigChange('enabled_m3u_accounts', newSelected);
+                                    }}
+                                  />
+                                }
+                                label={`${account.name || `Account ${account.id}`} - ${account.url || 'No URL'}`}
+                              />
+                            ))}
+                          </FormGroup>
+                        </>
+                      )}
                       
                       <Box sx={{ mt: 3, display: 'flex', gap: 1 }}>
                         <Button onClick={handleBack}>
