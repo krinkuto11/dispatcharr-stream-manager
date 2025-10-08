@@ -143,12 +143,13 @@ class StreamCheckConfig:
         Returns:
             Dict[str, Any]: The configuration dictionary.
         """
+        import copy
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     loaded = json.load(f)
-                    # Merge with defaults to ensure all keys exist
-                    config = self.DEFAULT_CONFIG.copy()
+                    # Deep copy defaults to avoid mutating DEFAULT_CONFIG
+                    config = copy.deepcopy(self.DEFAULT_CONFIG)
                     config.update(loaded)
                     return config
             except (json.JSONDecodeError, FileNotFoundError) as e:
@@ -157,9 +158,9 @@ class StreamCheckConfig:
                     f"{self.config_file}: {e}, using defaults"
                 )
         
-        # Create default config
-        self._save_config(self.DEFAULT_CONFIG)
-        return self.DEFAULT_CONFIG.copy()
+        # Create default config - use deep copy to avoid mutation
+        self._save_config(copy.deepcopy(self.DEFAULT_CONFIG))
+        return copy.deepcopy(self.DEFAULT_CONFIG)
     
     def _save_config(
         self, config: Optional[Dict[str, Any]] = None
