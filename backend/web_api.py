@@ -992,4 +992,15 @@ if __name__ == '__main__':
     except Exception as e:
         logging.error(f"Failed to auto-start stream checker service: {e}")
     
+    # Auto-start automation service if enabled
+    try:
+        manager = get_automation_manager()
+        if manager.config.get('autostart_automation', False):
+            manager.start_automation()
+            logging.info("Automation service auto-started")
+        else:
+            logging.info("Automation service autostart is disabled in configuration")
+    except Exception as e:
+        logging.error(f"Failed to auto-start automation service: {e}")
+    
     app.run(host=args.host, port=args.port, debug=args.debug)

@@ -68,6 +68,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     global_check_interval_hours: 24,
     concurrent_stream_checks: 2,
     enabled_m3u_accounts: [],
+    autostart_automation: false,
     enabled_features: {
       auto_playlist_update: true,
       auto_stream_discovery: true,
@@ -84,6 +85,9 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
       hour: 3,
       minute: 0,
       day_of_month: 1
+    },
+    queue: {
+      check_on_update: true
     }
   });
 
@@ -688,6 +692,33 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                       />
                       
                       <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                        Stream Checker Settings
+                      </Typography>
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={streamCheckerConfig.queue?.check_on_update !== false}
+                            onChange={(e) => {
+                              setStreamCheckerConfig(prev => ({
+                                ...prev,
+                                queue: {
+                                  ...prev.queue,
+                                  check_on_update: e.target.checked
+                                }
+                              }));
+                            }}
+                          />
+                        }
+                        label="Check Channels on M3U Update"
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        When enabled, channels are automatically queued for quality checking when their M3U playlists are updated.
+                      </Typography>
+                      
+                      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                         Global Check Schedule
                       </Typography>
                       
@@ -771,6 +802,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                         <FormControlLabel
                           control={
                             <Switch
+                              checked={config.autostart_automation || false}
+                              onChange={(e) => handleConfigChange('autostart_automation', e.target.checked)}
+                            />
+                          }
+                          label="Start Automation Service on Startup"
+                        />
+                        <FormControlLabel
+                          control={
+                            <Switch
                               checked={config.enabled_features.auto_playlist_update}
                               onChange={(e) => handleConfigChange('enabled_features.auto_playlist_update', e.target.checked)}
                             />
@@ -825,9 +865,27 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                                   <Switch
                                     checked={selectedM3uAccounts.length === 0 || selectedM3uAccounts.includes(account.id)}
                                     onChange={(e) => {
-                                      const newSelected = e.target.checked
-                                        ? [...selectedM3uAccounts, account.id]
-                                        : selectedM3uAccounts.filter(id => id !== account.id);
+                                      let newSelected;
+                                      if (selectedM3uAccounts.length === 0) {
+                                        // All accounts currently enabled (empty array)
+                                        // User is unchecking one, so populate array with all OTHER account IDs
+                                        newSelected = m3uAccounts
+                                          .filter(acc => acc.id !== account.id)
+                                          .map(acc => acc.id);
+                                      } else {
+                                        // Some accounts selected
+                                        if (e.target.checked) {
+                                          // Adding an account
+                                          newSelected = [...selectedM3uAccounts, account.id];
+                                          // If all accounts are now selected, reset to empty array (meaning "all")
+                                          if (newSelected.length === m3uAccounts.length) {
+                                            newSelected = [];
+                                          }
+                                        } else {
+                                          // Removing an account
+                                          newSelected = selectedM3uAccounts.filter(id => id !== account.id);
+                                        }
+                                      }
                                       setSelectedM3uAccounts(newSelected);
                                       handleConfigChange('enabled_m3u_accounts', newSelected);
                                     }}
