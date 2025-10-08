@@ -479,13 +479,16 @@ def refresh_playlist():
 
 @app.route('/api/m3u-accounts', methods=['GET'])
 def get_m3u_accounts_endpoint():
-    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist."""
+    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist and non-active accounts."""
     try:
         from api_utils import get_m3u_accounts, get_streams
         accounts = get_m3u_accounts()
         
         if accounts is None:
             return jsonify({"error": "Failed to fetch M3U accounts"}), 500
+        
+        # Filter out non-active accounts per Dispatcharr API spec
+        accounts = [acc for acc in accounts if acc.get('is_active', True)]
         
         # Check if there are any custom streams
         all_streams = get_streams(log_result=False)
