@@ -493,12 +493,12 @@ def get_m3u_accounts_endpoint():
         
         # Filter out "custom" M3U account if there are no custom streams
         if not has_custom_streams:
-            # Filter accounts by checking name or other identifiers
-            # Look for accounts named "custom" (case-insensitive) or with null/empty server_url
+            # Filter accounts by checking name only
+            # Only filter accounts named "custom" (case-insensitive)
+            # Do not filter based on null URLs as legitimate disabled/file-based accounts may have these
             accounts = [
                 acc for acc in accounts 
-                if not (acc.get('name', '').lower() == 'custom' or 
-                       (acc.get('server_url') is None and acc.get('file_path') is None))
+                if acc.get('name', '').lower() != 'custom'
             ]
         
         return jsonify(accounts)
