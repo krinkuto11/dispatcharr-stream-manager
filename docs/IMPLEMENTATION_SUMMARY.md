@@ -350,6 +350,7 @@ docker compose -f docker-compose.pr-test.yml up -d
   6. Cache Docker layers
   7. Login to GHCR (release only)
   8. Build and push image (push only on release)
+- Platforms: linux/amd64, linux/arm64
 - Output (on release): 
   - `ghcr.io/krinkuto11/streamflow:latest`
   - `ghcr.io/krinkuto11/streamflow:<version>` (e.g., v1.0.0)
