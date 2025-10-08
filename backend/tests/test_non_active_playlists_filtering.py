@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 class TestNonActivePlaylistsFiltering(unittest.TestCase):
     """Test that non-active playlists are filtered out from the API response."""
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_filters_non_active_accounts(self, mock_get_accounts, mock_get_streams):
+    def test_filters_non_active_accounts(self, mock_get_accounts, mock_has_custom):
         """Test that accounts with is_active=False are filtered out."""
         from web_api import app
         
@@ -32,10 +32,8 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             {'id': 3, 'name': 'Another Active', 'server_url': 'http://active.com', 'is_active': True},
         ]
         
-        # Mock streams (not relevant for this test but required by endpoint)
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams (not relevant for this test but required by endpoint)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -54,9 +52,9 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             self.assertIn('Another Active', account_names)
             self.assertNotIn('Inactive Provider', account_names)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_keeps_accounts_without_is_active_field(self, mock_get_accounts, mock_get_streams):
+    def test_keeps_accounts_without_is_active_field(self, mock_get_accounts, mock_has_custom):
         """Test that accounts without is_active field are kept (default to active)."""
         from web_api import app
         
@@ -67,10 +65,8 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             {'id': 3, 'name': 'Inactive Provider', 'server_url': 'http://inactive.com', 'is_active': False},
         ]
         
-        # Mock streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -83,9 +79,9 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             self.assertIn(2, account_ids)  # Should be kept (defaults to active)
             self.assertNotIn(3, account_ids)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_filters_non_active_and_custom_accounts(self, mock_get_accounts, mock_get_streams):
+    def test_filters_non_active_and_custom_accounts(self, mock_get_accounts, mock_has_custom):
         """Test that both is_active=False and 'custom' name filtering work together."""
         from web_api import app
         
@@ -97,10 +93,8 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             {'id': 4, 'name': 'Another Active', 'server_url': 'http://active.com', 'is_active': True},
         ]
         
-        # Mock streams with NO custom streams (so "custom" account should be filtered)
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams to return False (so "custom" account should be filtered)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -114,9 +108,9 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             self.assertNotIn(2, account_ids)  # Filtered due to is_active=False
             self.assertNotIn(3, account_ids)  # Filtered due to name='custom' and no custom streams
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_keeps_inactive_custom_account_when_custom_streams_exist(self, mock_get_accounts, mock_get_streams):
+    def test_keeps_inactive_custom_account_when_custom_streams_exist(self, mock_get_accounts, mock_has_custom):
         """Test that even if 'custom' account is inactive, filtering by name still applies when custom streams exist."""
         from web_api import app
         
@@ -126,11 +120,8 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             {'id': 2, 'name': 'custom', 'server_url': None, 'is_active': False},
         ]
         
-        # Mock streams WITH custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-            {'id': 2, 'name': 'Custom Stream', 'is_custom': True, 'm3u_account': None},
-        ]
+        # Mock has_custom_streams to return True
+        mock_has_custom.return_value = True
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -142,9 +133,9 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             self.assertEqual(data[0]['id'], 1)
             self.assertEqual(data[0]['name'], 'Active Provider')
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_all_accounts_inactive(self, mock_get_accounts, mock_get_streams):
+    def test_all_accounts_inactive(self, mock_get_accounts, mock_has_custom):
         """Test edge case where all accounts are inactive."""
         from web_api import app
         
@@ -154,10 +145,8 @@ class TestNonActivePlaylistsFiltering(unittest.TestCase):
             {'id': 2, 'name': 'Inactive 2', 'server_url': 'http://inactive.com', 'is_active': False},
         ]
         
-        # Mock streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
