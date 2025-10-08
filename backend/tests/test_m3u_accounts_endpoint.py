@@ -77,8 +77,11 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
     
     @patch('api_utils.get_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_filters_account_with_null_urls_when_no_custom_streams(self, mock_get_accounts, mock_get_streams):
-        """Test that accounts with null server_url and file_path are filtered when no custom streams."""
+    def test_keeps_account_with_null_urls_when_no_custom_streams(self, mock_get_accounts, mock_get_streams):
+        """Test that accounts with null server_url and file_path are kept (not filtered) when no custom streams.
+        
+        This ensures legitimate disabled or file-based accounts aren't incorrectly filtered out.
+        """
         from web_api import app
         
         # Mock M3U accounts with different configurations
@@ -97,12 +100,13 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             response = client.get('/api/m3u-accounts')
             data = json.loads(response.data)
             
-            # Should return accounts 1 and 3, filtering out account 2 (null urls)
-            self.assertEqual(len(data), 2)
+            # Should return all 3 accounts - we no longer filter based on null URLs
+            # Only filter by name matching "custom" (case-insensitive)
+            self.assertEqual(len(data), 3)
             account_ids = [acc['id'] for acc in data]
             self.assertIn(1, account_ids)
+            self.assertIn(2, account_ids)
             self.assertIn(3, account_ids)
-            self.assertNotIn(2, account_ids)
     
     @patch('api_utils.get_streams')
     @patch('api_utils.get_m3u_accounts')
@@ -158,6 +162,39 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             
             # Should return all 3 accounts since custom streams exist
             self.assertEqual(len(data), 3)
+    
+    @patch('api_utils.get_streams')
+    @patch('api_utils.get_m3u_accounts')
+    def test_disabled_accounts_with_null_urls_are_not_filtered(self, mock_get_accounts, mock_get_streams):
+        """Test edge case: disabled accounts with null URLs should not be filtered out.
+        
+        This was the bug - accounts with null server_url and file_path were being filtered
+        even if they were legitimate disabled accounts, not just placeholders.
+        """
+        from web_api import app
+        
+        # Mock accounts where some might be disabled with null URLs
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Active Account', 'server_url': 'http://example.com'},
+            {'id': 2, 'name': 'Disabled Account', 'server_url': None, 'file_path': None},
+            {'id': 3, 'name': 'custom', 'server_url': None, 'file_path': None},
+        ]
+        
+        # No custom streams
+        mock_get_streams.return_value = [
+            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
+        ]
+        
+        with app.test_client() as client:
+            response = client.get('/api/m3u-accounts')
+            data = json.loads(response.data)
+            
+            # Should return Active and Disabled accounts, but filter out "custom"
+            self.assertEqual(len(data), 2)
+            account_names = [acc['name'] for acc in data]
+            self.assertIn('Active Account', account_names)
+            self.assertIn('Disabled Account', account_names)
+            self.assertNotIn('custom', account_names)
 
 
 if __name__ == '__main__':

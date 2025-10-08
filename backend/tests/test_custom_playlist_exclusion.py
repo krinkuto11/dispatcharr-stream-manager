@@ -88,8 +88,12 @@ class TestCustomPlaylistExclusion(unittest.TestCase):
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
     @patch('automated_stream_manager.get_m3u_accounts')
-    def test_null_url_accounts_excluded(self, mock_get_accounts, mock_get_streams, mock_refresh):
-        """Test that accounts with null server_url and file_path are excluded."""
+    def test_null_url_accounts_not_excluded(self, mock_get_accounts, mock_get_streams, mock_refresh):
+        """Test that accounts with null server_url and file_path are NOT excluded (bug fix).
+        
+        This test was updated to reflect the fix for the edge case where disabled/file-based
+        accounts with null URLs were being incorrectly filtered out.
+        """
         mock_get_accounts.return_value = [
             {'id': 1, 'name': 'Valid Account', 'server_url': 'http://example.com/playlist.m3u'},
             {'id': 2, 'name': 'LocalAccount', 'server_url': None, 'file_path': None},
@@ -102,8 +106,10 @@ class TestCustomPlaylistExclusion(unittest.TestCase):
             manager.config['enabled_features']['changelog_tracking'] = False
             manager.refresh_playlists()
             
-            # Should only refresh account 1
-            mock_refresh.assert_called_once_with(account_id=1)
+            # Should refresh both accounts (we no longer filter based on null URLs)
+            self.assertEqual(mock_refresh.call_count, 2)
+            mock_refresh.assert_any_call(account_id=1)
+            mock_refresh.assert_any_call(account_id=2)
     
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')

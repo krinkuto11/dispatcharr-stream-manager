@@ -344,10 +344,10 @@ class AutomatedStreamManager:
             all_accounts = get_m3u_accounts()
             if all_accounts:
                 # Filter out "custom" account (it doesn't need refresh as it's for locally added streams)
+                # Only filter by name, not by null URLs, as legitimate accounts may have these
                 non_custom_accounts = [
                     acc for acc in all_accounts
-                    if not (acc.get('name', '').lower() == 'custom' or 
-                           (acc.get('server_url') is None and acc.get('file_path') is None))
+                    if acc.get('name', '').lower() != 'custom'
                 ]
                 
                 # Perform refresh - check if we need to filter by enabled accounts
