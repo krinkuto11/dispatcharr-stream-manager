@@ -36,6 +36,7 @@ Single Docker container with:
 - React frontend for web interface
 - Persistent configuration storage via Docker volumes
 - Single port (3000) for all access
+- Multi-platform support: linux/amd64, linux/arm64
 
 ## Configuration
 

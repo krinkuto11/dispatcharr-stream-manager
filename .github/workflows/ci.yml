@@ -72,7 +72,7 @@ jobs:
       with:
         context: .
         dockerfile: ./Dockerfile
-        platforms: linux/amd64
+        platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name == 'release' || (github.event_name == 'pull_request' && github.base_ref == 'dev' && github.event.pull_request.merged == true) }}
         tags: ${{ github.event_name == 'release' && steps.meta.outputs.tags || 'ghcr.io/krinkuto11/streamflow:pr-test' }}
         labels: ${{ steps.meta.outputs.labels }}
