@@ -88,8 +88,10 @@ class StreamCheckConfig:
         'check_interval': 300,  # DEPRECATED - checks now only triggered by M3U refresh
         'global_check_schedule': {
             'enabled': True,
+            'frequency': 'daily',  # 'daily' or 'monthly'
             'hour': 3,  # 3 AM for off-peak checking
-            'minute': 0
+            'minute': 0,
+            'day_of_month': 1  # Day of month for monthly checks (1-31)
         },
         'stream_analysis': {
             'ffmpeg_duration': 30,  # seconds to analyze each stream
@@ -789,21 +791,38 @@ class StreamCheckerService:
         now = datetime.now()
         scheduled_hour = self.config.get('global_check_schedule.hour', 3)
         scheduled_minute = self.config.get('global_check_schedule.minute', 0)
+        frequency = self.config.get('global_check_schedule.frequency', 'daily')
         
         # Check if we're in the scheduled time window (within 5 minutes)
         if now.hour == scheduled_hour and abs(now.minute - scheduled_minute) <= 5:
             last_global = self.update_tracker.get_last_global_check()
-            if last_global:
-                last_check_time = datetime.fromisoformat(last_global)
-                # Only do global check once per day
-                if (now - last_check_time).days < 1:
-                    return
             
-            # Queue all channels for global check
-            logging.info("Starting scheduled global channel check")
-            self._queue_all_channels()
-            # Mark that global check has been initiated to prevent duplicate queueing
-            self.update_tracker.mark_global_check()
+            # Determine if we should run based on frequency
+            should_run = False
+            if frequency == 'monthly':
+                scheduled_day = self.config.get('global_check_schedule.day_of_month', 1)
+                # Check if it's the correct day of the month
+                if now.day == scheduled_day:
+                    if last_global:
+                        last_check_time = datetime.fromisoformat(last_global)
+                        # Only do global check once per month (30 days)
+                        if (now - last_check_time).days < 30:
+                            return
+                    should_run = True
+            else:  # daily
+                if last_global:
+                    last_check_time = datetime.fromisoformat(last_global)
+                    # Only do global check once per day
+                    if (now - last_check_time).days < 1:
+                        return
+                should_run = True
+            
+            if should_run:
+                # Queue all channels for global check
+                logging.info(f"Starting scheduled {frequency} global channel check")
+                self._queue_all_channels()
+                # Mark that global check has been initiated to prevent duplicate queueing
+                self.update_tracker.mark_global_check()
     
     def _queue_all_channels(self):
         """Queue all channels for checking (global check)."""

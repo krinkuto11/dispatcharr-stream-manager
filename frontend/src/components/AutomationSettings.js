@@ -11,7 +11,11 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Grid
+  Grid,
+  RadioGroup,
+  Radio,
+  FormControl,
+  FormLabel
 } from '@mui/material';
 import { automationAPI, streamCheckerAPI } from '../services/api';
 
@@ -174,8 +178,44 @@ function AutomationSettings() {
               />
               
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Configure the time when the daily global channel check runs. This check processes all channels to verify stream quality.
+                Configure when the global channel check runs to verify stream quality across all channels.
               </Typography>
+              
+              <FormControl component="fieldset" sx={{ mb: 2 }}>
+                <FormLabel component="legend">Frequency</FormLabel>
+                <RadioGroup
+                  row
+                  value={streamCheckerConfig.global_check_schedule?.frequency ?? 'daily'}
+                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.frequency', e.target.value)}
+                >
+                  <FormControlLabel 
+                    value="daily" 
+                    control={<Radio />} 
+                    label="Daily" 
+                    disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
+                  />
+                  <FormControlLabel 
+                    value="monthly" 
+                    control={<Radio />} 
+                    label="Monthly" 
+                    disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
+                  />
+                </RadioGroup>
+              </FormControl>
+              
+              {(streamCheckerConfig.global_check_schedule?.frequency ?? 'daily') === 'monthly' && (
+                <TextField
+                  label="Day of Month"
+                  type="number"
+                  value={streamCheckerConfig.global_check_schedule?.day_of_month ?? 1}
+                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.day_of_month', parseInt(e.target.value))}
+                  inputProps={{ min: 1, max: 31 }}
+                  disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
+                  fullWidth
+                  margin="normal"
+                  helperText="Day of the month to run the check (1-31)"
+                />
+              )}
               
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <TextField
