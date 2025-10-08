@@ -89,7 +89,7 @@ function AutomationSettings() {
         setStreamCheckerConfig(prev => ({
           ...prev,
           [parent]: {
-            ...prev[parent],
+            ...(prev[parent] || {}),
             [child]: value
           }
         }));
@@ -154,6 +154,32 @@ function AutomationSettings() {
                 margin="normal"
                 helperText="How often to check for playlist updates"
               />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Stream Checker Service */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Stream Checker Service
+              </Typography>
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={streamCheckerConfig.enabled !== false}
+                    onChange={(e) => handleStreamCheckerConfigChange('enabled', e.target.checked)}
+                  />
+                }
+                label="Enable Automation Service Auto-start"
+                sx={{ mb: 2 }}
+              />
+              
+              <Typography variant="body2" color="text.secondary">
+                When enabled, the stream checker service will automatically start when the application launches.
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -280,6 +306,109 @@ function AutomationSettings() {
                   label="Changelog Tracking"
                 />
               </FormGroup>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Stream Analysis Settings */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Stream Analysis Settings
+              </Typography>
+              
+              <TextField
+                label="FFmpeg Duration (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.ffmpeg_duration ?? 30}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.ffmpeg_duration', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Duration to analyze each stream"
+                inputProps={{ min: 5, max: 120 }}
+              />
+              
+              <TextField
+                label="Timeout (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.timeout ?? 30}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.timeout', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Timeout for stream analysis operations"
+                inputProps={{ min: 10, max: 300 }}
+              />
+              
+              <TextField
+                label="Retry Attempts"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.retries ?? 1}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.retries', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Number of retry attempts for failed checks"
+                inputProps={{ min: 0, max: 5 }}
+              />
+              
+              <TextField
+                label="Retry Delay (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.retry_delay ?? 10}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.retry_delay', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Delay between retry attempts"
+                inputProps={{ min: 5, max: 60 }}
+              />
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Queue Settings */}
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Queue Settings
+              </Typography>
+              
+              <TextField
+                label="Maximum Queue Size"
+                type="number"
+                value={streamCheckerConfig.queue?.max_size ?? 1000}
+                onChange={(e) => handleStreamCheckerConfigChange('queue.max_size', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Maximum number of channels in the checking queue"
+                inputProps={{ min: 10, max: 10000 }}
+              />
+              
+              <TextField
+                label="Max Channels Per Run"
+                type="number"
+                value={streamCheckerConfig.queue?.max_channels_per_run ?? 50}
+                onChange={(e) => handleStreamCheckerConfigChange('queue.max_channels_per_run', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Maximum channels to check in a single run"
+                inputProps={{ min: 1, max: 500 }}
+              />
+              
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={streamCheckerConfig.queue?.check_on_update !== false}
+                    onChange={(e) => handleStreamCheckerConfigChange('queue.check_on_update', e.target.checked)}
+                  />
+                }
+                label="Check Channels on M3U Update"
+                sx={{ mt: 2 }}
+              />
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Automatically queue channels for checking when they receive M3U playlist updates.
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
