@@ -303,6 +303,7 @@ class AutomatedStreamManager:
         default_config = {
             "playlist_update_interval_minutes": 5,
             "enabled_m3u_accounts": [],  # Empty list means all accounts enabled
+            "autostart_automation": False,  # Don't auto-start by default
             "enabled_features": {
                 "auto_playlist_update": True,
                 "auto_stream_discovery": True,
