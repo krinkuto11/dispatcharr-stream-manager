@@ -340,14 +340,15 @@ class AutomatedStreamManager:
             streams_before = get_streams(log_result=False) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             before_stream_ids = {s.get('id'): s.get('name', '') for s in streams_before if isinstance(s, dict) and s.get('id')}
             
-            # Get all M3U accounts and filter out "custom" account
+            # Get all M3U accounts and filter out "custom" and non-active accounts
             all_accounts = get_m3u_accounts()
             if all_accounts:
                 # Filter out "custom" account (it doesn't need refresh as it's for locally added streams)
+                # and non-active accounts (per Dispatcharr API spec)
                 # Only filter by name, not by null URLs, as legitimate accounts may have these
                 non_custom_accounts = [
                     acc for acc in all_accounts
-                    if acc.get('name', '').lower() != 'custom'
+                    if acc.get('name', '').lower() != 'custom' and acc.get('is_active', True)
                 ]
                 
                 # Perform refresh - check if we need to filter by enabled accounts
