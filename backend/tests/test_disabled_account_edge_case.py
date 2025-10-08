@@ -20,9 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 class TestDisabledAccountEdgeCase(unittest.TestCase):
     """Test the edge case fix for disabled accounts with null URLs."""
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_edge_case_disabled_account_still_shown(self, mock_get_accounts, mock_get_streams):
+    def test_edge_case_disabled_account_still_shown(self, mock_get_accounts, mock_has_custom):
         """
         Test the edge case that was fixed:
         
@@ -42,9 +42,7 @@ class TestDisabledAccountEdgeCase(unittest.TestCase):
         ]
         
         # No custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -57,9 +55,9 @@ class TestDisabledAccountEdgeCase(unittest.TestCase):
             self.assertIn('Account B', account_names)  # Disabled account is kept!
             self.assertNotIn('custom', account_names)  # Only "custom" is filtered
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_file_based_account_with_null_server_url_shown(self, mock_get_accounts, mock_get_streams):
+    def test_file_based_account_with_null_server_url_shown(self, mock_get_accounts, mock_has_custom):
         """
         Test that file-based accounts with null server_url are kept.
         
@@ -76,7 +74,7 @@ class TestDisabledAccountEdgeCase(unittest.TestCase):
             {'id': 3, 'name': 'custom', 'server_url': None, 'file_path': None},
         ]
         
-        mock_get_streams.return_value = []
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -89,9 +87,9 @@ class TestDisabledAccountEdgeCase(unittest.TestCase):
             self.assertIn('Local File', account_names)
             self.assertNotIn('custom', account_names)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_all_accounts_disabled_except_custom(self, mock_get_accounts, mock_get_streams):
+    def test_all_accounts_disabled_except_custom(self, mock_get_accounts, mock_has_custom):
         """
         Test edge case where all real accounts are disabled, only custom remains.
         
@@ -109,7 +107,7 @@ class TestDisabledAccountEdgeCase(unittest.TestCase):
             {'id': 3, 'name': 'custom', 'server_url': None, 'file_path': None},
         ]
         
-        mock_get_streams.return_value = []
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')

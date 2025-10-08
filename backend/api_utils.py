@@ -457,6 +457,65 @@ def get_streams(log_result: bool = True) -> List[Dict[str, Any]]:
         logging.info(f"Fetched {len(all_streams)} total streams")
     return all_streams
 
+def has_custom_streams() -> bool:
+    """
+    Efficiently check if any custom streams exist.
+    
+    Tries to use API filtering if supported, otherwise iterates through
+    pages with early exit. This is much faster than fetching all streams
+    when there are thousands.
+    
+    Returns:
+        bool: True if at least one custom stream exists, False otherwise.
+    """
+    base_url = _get_base_url()
+    
+    # Try filtering by is_custom parameter first (if API supports it)
+    # This would be the most efficient approach
+    url = f"{base_url}/api/channels/streams/?is_custom=true&page_size=1"
+    response = fetch_data_from_url(url)
+    
+    if response:
+        # Handle paginated response
+        if isinstance(response, dict):
+            results = response.get('results', [])
+            # If we got results with the filter, custom streams exist
+            if results and any(s.get('is_custom', False) for s in results):
+                return True
+            # If no results, check if filtering is supported by checking total count
+            # If count is explicitly 0 or results is empty list, no custom streams
+            if 'results' in response:
+                return False
+        elif isinstance(response, list) and response:
+            if any(s.get('is_custom', False) for s in response):
+                return True
+    
+    # Fallback: If filtering isn't supported or unclear, iterate through pages
+    # Use page_size=100 for efficiency (fewer API calls)
+    url = f"{base_url}/api/channels/streams/?page_size=100"
+    
+    while url:
+        response = fetch_data_from_url(url)
+        if not response:
+            break
+        
+        # Handle paginated response
+        if isinstance(response, dict) and 'results' in response:
+            streams = response.get('results', [])
+            # Early exit if we find any custom stream
+            if any(s.get('is_custom', False) for s in streams):
+                return True
+            url = response.get('next')
+        elif isinstance(response, list):
+            # Early exit if we find any custom stream
+            if any(s.get('is_custom', False) for s in response):
+                return True
+            break
+        else:
+            break
+    
+    return False
+
 def create_channel_from_stream(
     stream_id: int,
     channel_number: Optional[int] = None,

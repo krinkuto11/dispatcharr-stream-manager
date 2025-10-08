@@ -20,9 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 class TestM3UAccountsEndpoint(unittest.TestCase):
     """Test M3U accounts endpoint filtering."""
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_filters_custom_account_when_no_custom_streams(self, mock_get_accounts, mock_get_streams):
+    def test_filters_custom_account_when_no_custom_streams(self, mock_get_accounts, mock_has_custom):
         """Test that 'custom' M3U account is filtered out when there are no custom streams."""
         from web_api import app
         
@@ -32,11 +32,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 2, 'name': 'custom', 'server_url': None, 'file_path': None},
         ]
         
-        # Mock streams with NO custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-            {'id': 2, 'name': 'Stream 2', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams to return False (no custom streams)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -47,9 +44,9 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             self.assertEqual(data[0]['id'], 1)
             self.assertEqual(data[0]['name'], 'IPTV Provider')
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_keeps_custom_account_when_custom_streams_exist(self, mock_get_accounts, mock_get_streams):
+    def test_keeps_custom_account_when_custom_streams_exist(self, mock_get_accounts, mock_has_custom):
         """Test that 'custom' M3U account is kept when custom streams exist."""
         from web_api import app
         
@@ -59,11 +56,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 2, 'name': 'custom', 'server_url': None, 'file_path': None},
         ]
         
-        # Mock streams with custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-            {'id': 2, 'name': 'My Custom Stream', 'is_custom': True, 'm3u_account': None},
-        ]
+        # Mock has_custom_streams to return True (custom streams exist)
+        mock_has_custom.return_value = True
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -75,9 +69,9 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             self.assertIn('IPTV Provider', account_names)
             self.assertIn('custom', account_names)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_keeps_account_with_null_urls_when_no_custom_streams(self, mock_get_accounts, mock_get_streams):
+    def test_keeps_account_with_null_urls_when_no_custom_streams(self, mock_get_accounts, mock_has_custom):
         """Test that accounts with null server_url and file_path are kept (not filtered) when no custom streams.
         
         This ensures legitimate disabled or file-based accounts aren't incorrectly filtered out.
@@ -91,10 +85,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 3, 'name': 'File Source', 'server_url': None, 'file_path': '/path/to/file.m3u'},
         ]
         
-        # Mock streams with NO custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams to return False (no custom streams)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -108,9 +100,9 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             self.assertIn(2, account_ids)
             self.assertIn(3, account_ids)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_case_insensitive_custom_name_filter(self, mock_get_accounts, mock_get_streams):
+    def test_case_insensitive_custom_name_filter(self, mock_get_accounts, mock_has_custom):
         """Test that 'custom' name filtering is case-insensitive."""
         from web_api import app
         
@@ -122,10 +114,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 4, 'name': 'CuStOm', 'server_url': None},
         ]
         
-        # Mock streams with NO custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams to return False (no custom streams)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -136,9 +126,9 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             self.assertEqual(data[0]['id'], 1)
             self.assertEqual(data[0]['name'], 'IPTV Provider')
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_returns_all_accounts_when_custom_streams_present(self, mock_get_accounts, mock_get_streams):
+    def test_returns_all_accounts_when_custom_streams_present(self, mock_get_accounts, mock_has_custom):
         """Test that all accounts are returned when custom streams are present."""
         from web_api import app
         
@@ -149,12 +139,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 3, 'name': 'Another Provider', 'server_url': 'http://another.com'},
         ]
         
-        # Mock streams with custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-            {'id': 2, 'name': 'My Custom', 'is_custom': True, 'm3u_account': None},
-            {'id': 3, 'name': 'Another Custom', 'is_custom': True, 'm3u_account': None},
-        ]
+        # Mock has_custom_streams to return True (custom streams exist)
+        mock_has_custom.return_value = True
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -163,9 +149,9 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             # Should return all 3 accounts since custom streams exist
             self.assertEqual(len(data), 3)
     
-    @patch('api_utils.get_streams')
+    @patch('api_utils.has_custom_streams')
     @patch('api_utils.get_m3u_accounts')
-    def test_disabled_accounts_with_null_urls_are_not_filtered(self, mock_get_accounts, mock_get_streams):
+    def test_disabled_accounts_with_null_urls_are_not_filtered(self, mock_get_accounts, mock_has_custom):
         """Test edge case: disabled accounts with null URLs should not be filtered out.
         
         This was the bug - accounts with null server_url and file_path were being filtered
@@ -180,10 +166,8 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             {'id': 3, 'name': 'custom', 'server_url': None, 'file_path': None},
         ]
         
-        # No custom streams
-        mock_get_streams.return_value = [
-            {'id': 1, 'name': 'Stream 1', 'is_custom': False, 'm3u_account': 1},
-        ]
+        # Mock has_custom_streams to return False (no custom streams)
+        mock_has_custom.return_value = False
         
         with app.test_client() as client:
             response = client.get('/api/m3u-accounts')
@@ -195,6 +179,32 @@ class TestM3UAccountsEndpoint(unittest.TestCase):
             self.assertIn('Active Account', account_names)
             self.assertIn('Disabled Account', account_names)
             self.assertNotIn('custom', account_names)
+
+
+    @patch('api_utils.has_custom_streams')
+    @patch('api_utils.get_m3u_accounts')
+    def test_uses_efficient_has_custom_streams_method(self, mock_get_accounts, mock_has_custom):
+        """Test that the endpoint uses the efficient has_custom_streams() method instead of get_streams().
+        
+        This ensures we're not fetching all streams (3000+) when checking for custom streams.
+        """
+        from web_api import app
+        
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'IPTV Provider', 'server_url': 'http://example.com'},
+        ]
+        
+        # Mock has_custom_streams to return False
+        mock_has_custom.return_value = False
+        
+        with app.test_client() as client:
+            response = client.get('/api/m3u-accounts')
+            
+            # Verify has_custom_streams was called (efficient method)
+            mock_has_custom.assert_called_once()
+            
+            # Should return successfully
+            self.assertEqual(response.status_code, 200)
 
 
 if __name__ == '__main__':

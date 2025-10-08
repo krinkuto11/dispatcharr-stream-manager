@@ -481,7 +481,7 @@ def refresh_playlist():
 def get_m3u_accounts_endpoint():
     """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist and non-active accounts."""
     try:
-        from api_utils import get_m3u_accounts, get_streams
+        from api_utils import get_m3u_accounts, has_custom_streams
         accounts = get_m3u_accounts()
         
         if accounts is None:
@@ -490,12 +490,11 @@ def get_m3u_accounts_endpoint():
         # Filter out non-active accounts per Dispatcharr API spec
         accounts = [acc for acc in accounts if acc.get('is_active', True)]
         
-        # Check if there are any custom streams
-        all_streams = get_streams(log_result=False)
-        has_custom_streams = any(s.get('is_custom', False) for s in all_streams)
+        # Check if there are any custom streams using efficient method
+        has_custom = has_custom_streams()
         
         # Filter out "custom" M3U account if there are no custom streams
-        if not has_custom_streams:
+        if not has_custom:
             # Filter accounts by checking name only
             # Only filter accounts named "custom" (case-insensitive)
             # Do not filter based on null URLs as legitimate disabled/file-based accounts may have these
