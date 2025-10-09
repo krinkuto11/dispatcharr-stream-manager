@@ -20,12 +20,15 @@ import {
   IconButton,
   Chip,
   Alert,
-  CircularProgress
+  CircularProgress,
+  TableSortLabel,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { channelsAPI, regexAPI } from '../services/api';
 
@@ -45,6 +48,11 @@ function ChannelConfiguration() {
   });
   const [testResults, setTestResults] = useState(null);
   const [testingPattern, setTestingPattern] = useState(false);
+  
+  // Search and sorting state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [orderBy, setOrderBy] = useState('channel_number');
+  const [order, setOrder] = useState('asc');
 
   useEffect(() => {
     loadData();
@@ -178,6 +186,61 @@ function ChannelConfiguration() {
     }));
   };
 
+  // Sorting handler
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
+  };
+
+  // Filter and sort channels
+  const getFilteredAndSortedChannels = () => {
+    let filteredChannels = channels;
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filteredChannels = channels.filter(channel => 
+        channel.channel_number?.toString().includes(query) ||
+        channel.name?.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    return filteredChannels.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (orderBy) {
+        case 'channel_number':
+          aValue = a.channel_number || 0;
+          bValue = b.channel_number || 0;
+          break;
+        case 'name':
+          aValue = a.name?.toLowerCase() || '';
+          bValue = b.name?.toLowerCase() || '';
+          break;
+        case 'patterns':
+          aValue = patterns.patterns?.[a.id]?.regex?.length || 0;
+          bValue = patterns.patterns?.[b.id]?.regex?.length || 0;
+          break;
+        case 'status':
+          aValue = patterns.patterns?.[a.id]?.enabled !== false ? 1 : 0;
+          bValue = patterns.patterns?.[b.id]?.enabled !== false ? 1 : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return order === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return order === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="400px">
@@ -213,24 +276,80 @@ function ChannelConfiguration() {
             Configure regex patterns to automatically assign new streams to channels based on stream names.
           </Typography>
 
+          {/* Search Field */}
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              placeholder="Search by channel number or name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              size="small"
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Channel</TableCell>
-                  <TableCell>Patterns</TableCell>
-                  <TableCell>Status</TableCell>
+                  <TableCell sortDirection={orderBy === 'channel_number' ? order : false}>
+                    <TableSortLabel
+                      active={orderBy === 'channel_number'}
+                      direction={orderBy === 'channel_number' ? order : 'asc'}
+                      onClick={() => handleRequestSort('channel_number')}
+                    >
+                      Channel Number
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={orderBy === 'name' ? order : false}>
+                    <TableSortLabel
+                      active={orderBy === 'name'}
+                      direction={orderBy === 'name' ? order : 'asc'}
+                      onClick={() => handleRequestSort('name')}
+                    >
+                      Channel Name
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={orderBy === 'patterns' ? order : false}>
+                    <TableSortLabel
+                      active={orderBy === 'patterns'}
+                      direction={orderBy === 'patterns' ? order : 'asc'}
+                      onClick={() => handleRequestSort('patterns')}
+                    >
+                      Patterns
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sortDirection={orderBy === 'status' ? order : false}>
+                    <TableSortLabel
+                      active={orderBy === 'status'}
+                      direction={orderBy === 'status' ? order : 'asc'}
+                      onClick={() => handleRequestSort('status')}
+                    >
+                      Status
+                    </TableSortLabel>
+                  </TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {channels.map((channel) => {
+                {getFilteredAndSortedChannels().map((channel) => {
                   const pattern = patterns.patterns?.[channel.id];
                   return (
                     <TableRow key={channel.id}>
                       <TableCell>
                         <Typography variant="body2">
-                          #{channel.channel_number} - {channel.name}
+                          #{channel.channel_number}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {channel.name}
                         </Typography>
                       </TableCell>
                       <TableCell>
