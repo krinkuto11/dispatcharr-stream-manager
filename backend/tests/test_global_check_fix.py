@@ -164,8 +164,8 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             time_diff = abs((before_time - last_check_time).total_seconds())
             self.assertLess(time_diff, 5, "Timestamp should be within 5 seconds of now")
     
-    def test_tracker_mark_global_check_clears_needs_check_flags(self):
-        """Test that mark_global_check clears all needs_check flags."""
+    def test_tracker_mark_global_check_preserves_needs_check_flags(self):
+        """Test that mark_global_check preserves needs_check flags (only updates timestamp)."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             tracker = ChannelUpdateTracker(self.tracker_file)
             
@@ -178,13 +178,13 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             channels_needing_check = tracker.get_channels_needing_check()
             self.assertEqual(len(channels_needing_check), 3)
             
-            # Mark global check
+            # Mark global check (this just updates the timestamp, doesn't clear flags)
             tracker.mark_global_check()
             
-            # Verify all needs_check flags are cleared
+            # Verify needs_check flags are preserved (channels queued but not yet checked)
             channels_needing_check = tracker.get_channels_needing_check()
-            self.assertEqual(len(channels_needing_check), 0, 
-                           "All needs_check flags should be cleared after global check")
+            self.assertEqual(len(channels_needing_check), 3, 
+                           "needs_check flags should be preserved after global check is initiated")
 
 
 if __name__ == '__main__':
