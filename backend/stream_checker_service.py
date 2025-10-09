@@ -442,16 +442,17 @@ class ChannelUpdateTracker:
             return []
     
     def mark_global_check(self, timestamp: str = None):
-        """Mark that a global check was performed."""
+        """Mark that a global check was initiated.
+        
+        This only updates the timestamp to prevent duplicate global checks.
+        It does NOT clear needs_check flags - those should only be cleared
+        when channels are actually checked via mark_channel_checked().
+        """
         if timestamp is None:
             timestamp = datetime.now().isoformat()
         
         with self.lock:
             self.updates['last_global_check'] = timestamp
-            # Mark all channels as checked
-            for channel_id in self.updates.get('channels', {}).keys():
-                self.updates['channels'][channel_id]['needs_check'] = False
-                self.updates['channels'][channel_id]['last_check'] = timestamp
             self._save_updates()
     
     def get_last_global_check(self) -> Optional[str]:
