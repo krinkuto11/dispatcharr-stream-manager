@@ -526,6 +526,9 @@ class AutomatedStreamManager:
             assignment_details = defaultdict(list)  # Track stream details for changelog
             assignment_count = {}
             
+            # Get enabled M3U accounts for filtering
+            enabled_accounts = self.config.get("enabled_m3u_accounts", [])
+            
             # Process each stream
             for stream in all_streams:
                 # Validate that stream is a dictionary before accessing attributes
@@ -538,6 +541,18 @@ class AutomatedStreamManager:
                 
                 if not stream_name or not stream_id:
                     continue
+                
+                # Filter streams by enabled M3U accounts
+                # Skip streams from disabled accounts (unless account filtering is disabled)
+                if enabled_accounts:  # If list is not empty, filtering is enabled
+                    # Custom streams (is_custom=True) should always be included
+                    is_custom = stream.get('is_custom', False)
+                    if not is_custom:
+                        # For non-custom streams, check if they belong to an enabled account
+                        m3u_account_id = stream.get('m3u_account_id')
+                        if m3u_account_id is not None and m3u_account_id not in enabled_accounts:
+                            # Skip this stream - it's from a disabled account
+                            continue
                 
                 # Find matching channels
                 matching_channels = self.regex_matcher.match_stream_to_channels(stream_name)
