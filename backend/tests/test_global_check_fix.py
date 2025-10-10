@@ -16,7 +16,7 @@ import sys
 import os
 
 # Add backend to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stream_checker_service import (
     StreamCheckerService,
@@ -124,24 +124,25 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             # Mock the _queue_all_channels method
             service._queue_all_channels = Mock()
             
-            # Set the scheduled time to current time
+            # Set the scheduled time to earlier today
             now = datetime.now()
+            earlier_hour = max(0, now.hour - 2)  # 2 hours ago
             service.config.update({
                 'global_check_schedule': {
                     'enabled': True,
-                    'hour': now.hour,
-                    'minute': now.minute
+                    'hour': earlier_hour,
+                    'minute': 0
                 }
             })
             
-            # Set last global check to 12 hours ago (same day)
-            recent_timestamp = (now - timedelta(hours=12)).isoformat()
+            # Set last global check to earlier today (after scheduled time, same day)
+            recent_timestamp = now.replace(hour=earlier_hour + 1, minute=0).isoformat()
             service.update_tracker.updates['last_global_check'] = recent_timestamp
             
             # Call _check_global_schedule
             service._check_global_schedule()
             
-            # Verify _queue_all_channels was NOT called (too recent)
+            # Verify _queue_all_channels was NOT called (already ran today)
             service._queue_all_channels.assert_not_called()
     
     def test_tracker_mark_global_check_updates_timestamp(self):
