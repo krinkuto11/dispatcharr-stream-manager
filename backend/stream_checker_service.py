@@ -795,31 +795,37 @@ class StreamCheckerService:
         scheduled_minute = self.config.get('global_check_schedule.minute', 0)
         frequency = self.config.get('global_check_schedule.frequency', 'daily')
         
-        # Check if we're in the scheduled time window (within 5 minutes)
-        if now.hour == scheduled_hour and abs(now.minute - scheduled_minute) <= 5:
-            last_global = self.update_tracker.get_last_global_check()
-            
-            # Determine if we should run based on frequency
-            should_run = False
-            if frequency == 'monthly':
-                scheduled_day = self.config.get('global_check_schedule.day_of_month', 1)
-                # Check if it's the correct day of the month
-                if now.day == scheduled_day:
-                    if last_global:
-                        last_check_time = datetime.fromisoformat(last_global)
-                        # Only do global check once per month (30 days)
-                        if (now - last_check_time).days < 30:
-                            return
-                    should_run = True
-            else:  # daily
+        last_global = self.update_tracker.get_last_global_check()
+        
+        # Determine if we should run based on frequency and last check time
+        should_run = False
+        
+        if frequency == 'monthly':
+            scheduled_day = self.config.get('global_check_schedule.day_of_month', 1)
+            # Check if it's the correct day of the month
+            if now.day == scheduled_day:
                 if last_global:
                     last_check_time = datetime.fromisoformat(last_global)
-                    # Only do global check once per day
-                    if (now - last_check_time).days < 1:
-                        return
+                    # Check if last run was in a different month or more than 30 days ago
+                    if last_check_time.month != now.month or last_check_time.year != now.year or (now - last_check_time).days >= 30:
+                        should_run = True
+                else:
+                    should_run = True
+        else:  # daily
+            if last_global:
+                last_check_time = datetime.fromisoformat(last_global)
+                # Check if last run was on a different day (not today)
+                if last_check_time.date() != now.date():
+                    should_run = True
+            else:
                 should_run = True
+        
+        # Only run if we're past the scheduled time today and haven't run yet
+        if should_run:
+            scheduled_time_today = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
             
-            if should_run:
+            # Run if current time is past scheduled time
+            if now >= scheduled_time_today:
                 # Queue all channels for global check
                 logging.info(f"Starting scheduled {frequency} global channel check")
                 self._queue_all_channels()
