@@ -23,7 +23,8 @@ import {
   Refresh as RefreshIcon,
   Settings as SettingsIcon,
   CheckCircle as CheckIcon,
-  Queue as QueueIcon
+  Queue as QueueIcon,
+  PlaylistPlay as GlobalActionIcon
 } from '@mui/icons-material';
 import { streamCheckerAPI } from '../services/api';
 
@@ -95,6 +96,19 @@ function StreamChecker() {
       await loadStatus();
     } catch (err) {
       setError('Failed to queue all channels');
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const handleGlobalAction = async () => {
+    try {
+      setActionLoading('globalAction');
+      const response = await streamCheckerAPI.triggerGlobalAction();
+      setSuccess(response.data?.message || 'Global action triggered: Update, Match, and Check all channels');
+      await loadStatus();
+    } catch (err) {
+      setError('Failed to trigger global action');
     } finally {
       setActionLoading('');
     }
@@ -298,6 +312,19 @@ function StreamChecker() {
                   Queue Status
                 </Typography>
                 <Box>
+                  <Tooltip title="Update M3U → Match streams → Check all channels (bypasses 2-hour immunity)">
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="secondary"
+                      onClick={handleGlobalAction}
+                      disabled={actionLoading === 'globalAction' || !status?.running}
+                      startIcon={<GlobalActionIcon />}
+                      sx={{ mr: 1 }}
+                    >
+                      {actionLoading === 'globalAction' ? 'Running...' : 'Global Action'}
+                    </Button>
+                  </Tooltip>
                   <Button
                     size="small"
                     variant="contained"
@@ -370,8 +397,18 @@ function StreamChecker() {
               <List dense>
                 <ListItem>
                   <ListItemText
-                    primary="Check Trigger"
-                    secondary="Automatic on M3U playlist refresh"
+                    primary="Pipeline Mode"
+                    secondary={(() => {
+                      const mode = status?.config?.pipeline_mode || 'pipeline_1_5';
+                      const modeNames = {
+                        'pipeline_1': 'Pipeline 1: Update → Match → Check (with 2hr immunity)',
+                        'pipeline_1_5': 'Pipeline 1.5: Pipeline 1 + Scheduled Global Action',
+                        'pipeline_2': 'Pipeline 2: Update → Match only (no checking)',
+                        'pipeline_2_5': 'Pipeline 2.5: Pipeline 2 + Scheduled Global Action',
+                        'pipeline_3': 'Pipeline 3: Only Scheduled Global Action'
+                      };
+                      return modeNames[mode] || mode;
+                    })()}
                   />
                 </ListItem>
                 <ListItem>
@@ -379,7 +416,7 @@ function StreamChecker() {
                     primary="Global Check Schedule"
                     secondary={
                       config.global_check_schedule?.enabled
-                        ? `Daily at ${config.global_check_schedule.hour}:${String(config.global_check_schedule.minute).padStart(2, '0')}`
+                        ? `${config.global_check_schedule.frequency || 'daily'} at ${config.global_check_schedule.hour}:${String(config.global_check_schedule.minute).padStart(2, '0')}`
                         : 'Disabled'
                     }
                   />
@@ -409,9 +446,13 @@ function StreamChecker() {
           <Alert severity="info">
             <Typography variant="body2">
               <strong>How it works:</strong> The stream checker automatically monitors channels for M3U updates
-              and checks their streams for quality. Streams are analyzed for bitrate, resolution, codec quality,
-              and errors, then automatically reordered with the best streams at the top. A global check can be
-              scheduled during off-peak hours to check all channels.
+              and checks their streams for quality based on your pipeline mode. Streams are analyzed for bitrate, 
+              resolution, codec quality, and errors, then automatically reordered with the best streams at the top.
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              <strong>Global Action:</strong> Performs a complete update cycle (Update M3U → Match streams → 
+              Check all channels) bypassing the 2-hour immunity. Use this for manual full updates or schedule it
+              for off-peak hours.
             </Typography>
           </Alert>
         </Grid>
