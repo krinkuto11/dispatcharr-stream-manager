@@ -2,6 +2,16 @@
 
 ## Stream Management
 
+### Pipeline-Based Automation
+StreamFlow offers 5 pipeline modes to match different usage scenarios:
+- **Pipeline 1**: Continuous updates with 2-hour immunity (moderate connection usage)
+- **Pipeline 1.5**: Pipeline 1 + scheduled complete checks (balanced approach)
+- **Pipeline 2**: Updates and matching only, no automatic checking (minimal connection usage)
+- **Pipeline 2.5**: Pipeline 2 + scheduled complete checks (controlled automation)
+- **Pipeline 3**: Only scheduled operations (maximum control)
+
+See [PIPELINE_SYSTEM.md](../PIPELINE_SYSTEM.md) for detailed pipeline documentation.
+
 ### Automated M3U Playlist Management
 - Automatically refreshes playlists every 5 minutes (configurable)
 - Detects playlist changes in real-time
@@ -70,10 +80,11 @@ Multi-factor analysis of stream quality:
 
 ### Stream Checker Dashboard
 - Service status monitoring
-- Queue visualization
-- Progress tracking with details
-- Quality score display
-- Configuration interface
+- Real-time statistics (queue size, completed, failed)
+- Progress tracking with detailed stream information
+- Pipeline information display
+- Global Action trigger button
+- Queue management (clear queue)
 
 ### Channel Configuration
 - Visual regex pattern editor
@@ -81,11 +92,16 @@ Multi-factor analysis of stream quality:
 - Live stream matching preview
 - Enable/disable patterns
 
-### Automation Settings
-- Interval configuration
-- Feature toggles
-- Global check scheduling
-- Quality analysis parameters
+### Configuration Page (unified)
+- **Pipeline Selection**: Choose from 5 automation modes with visual cards
+- **Schedule Configuration**: Set timing for global actions (pipelines 1.5, 2.5, 3)
+  - Daily or monthly frequency
+  - Precise time selection (hour and minute)
+  - Day of month for monthly schedules
+- **Context-Aware Settings**: Only relevant options shown based on selected pipeline
+- **Update Intervals**: Configure M3U refresh frequency (for applicable pipelines)
+- **Stream Analysis Parameters**: FFmpeg duration, timeouts, retries
+- **Queue Settings**: Maximum queue size, channels per run
 
 ### Changelog
 - Complete activity history
@@ -107,11 +123,12 @@ Multi-factor analysis of stream quality:
 - Update timestamp tracking
 - Prevents duplicate checking
 
-### Scheduled Global Checks
-- Configurable off-peak checking (default: 3 AM)
-- Full channel queue on schedule
-- Manual global check trigger
-- Schedule enable/disable toggle
+### Global Actions
+- **Manual Trigger**: One-click complete update cycle (Update → Match → Check all)
+- **Scheduled Execution**: Automatic runs at configured time (daily or monthly)
+- **Force Check**: Bypasses 2-hour immunity to check all streams
+- **Pipeline Integration**: Available in pipelines 1.5, 2.5, and 3
+- **Configurable Timing**: Precise hour and minute selection for off-peak operation
 
 ### Queue Management
 - Priority-based queue system

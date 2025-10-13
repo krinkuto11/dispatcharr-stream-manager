@@ -22,11 +22,13 @@ See [Deployment Guide](docs/DEPLOYMENT.md) for detailed instructions.
 
 ## Features
 
+- **5 Pipeline Modes**: Choose the automation level that fits your needs (from continuous checking to scheduled-only)
 - **Automated M3U Playlist Management**: Refresh playlists every 5 minutes (configurable)
 - **Stream Quality Checking**: Analyze streams for bitrate, resolution, FPS, codec quality, and errors
 - **Automatic Stream Reordering**: Best quality streams moved to the top
 - **Stream Discovery**: Regex patterns for automatic stream-to-channel assignment
-- **Web Interface**: React-based UI for monitoring and configuration
+- **Global Action**: Manual or scheduled complete update cycles (Update → Match → Check all channels)
+- **Web Interface**: React-based UI with unified configuration page and real-time monitoring
 - **REST API**: Full API access for all operations
 
 ## Architecture
@@ -42,10 +44,17 @@ Single Docker container with:
 
 All configuration stored in JSON files in `/app/data` (Docker volume):
 - `automation_config.json` - Automation settings (intervals, features)
-- `stream_checker_config.json` - Stream checking parameters and scoring weights
+- `stream_checker_config.json` - Pipeline mode, scheduling, and stream checking parameters
 - `channel_regex_config.json` - Regex patterns for stream assignment
 - `channel_updates.json` - Channel update tracking
 - `changelog.json` - Activity history
+
+**Web UI**: Navigate to the **Configuration** page (formerly "Automation Settings") to:
+- Select your pipeline mode (determines when and how streams are checked)
+- Configure scheduled global actions (for pipelines 1.5, 2.5, and 3)
+- Adjust update intervals and analysis settings
+
+**Stream Checker**: View real-time statistics, progress, and manually trigger global actions
 
 ## Project Structure
 
