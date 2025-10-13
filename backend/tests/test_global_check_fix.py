@@ -41,13 +41,13 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_mark_global_check_called_after_queueing(self):
-        """Test that mark_global_check() is called after _queue_all_channels()."""
+        """Test that mark_global_check() is called after _perform_global_action()."""
         # Create service with test config
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method
-            service._queue_all_channels = Mock()
+            # Mock the _perform_global_action method
+            service._perform_global_action = Mock()
             
             # Set the scheduled time to current time
             now = datetime.now()
@@ -66,8 +66,8 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             # Call _check_global_schedule
             service._check_global_schedule()
             
-            # Verify _queue_all_channels was called
-            service._queue_all_channels.assert_called_once()
+            # Verify _perform_global_action was called
+            service._perform_global_action.assert_called_once()
             
             # Verify mark_global_check was called (last_global_check should be updated)
             last_check = service.update_tracker.get_last_global_check()
@@ -83,16 +83,15 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method to track calls
-            queue_all_calls = []
-            original_queue_all = service._queue_all_channels
+            # Mock the _perform_global_action method to track calls
+            global_action_calls = []
             
-            def mock_queue_all():
-                queue_all_calls.append(datetime.now())
-                # Don't actually queue, just mark
+            def mock_global_action():
+                global_action_calls.append(datetime.now())
+                # Mark that global check was performed
                 service.update_tracker.mark_global_check()
             
-            service._queue_all_channels = Mock(side_effect=mock_queue_all)
+            service._perform_global_action = Mock(side_effect=mock_global_action)
             
             # Set the scheduled time to current time
             now = datetime.now()
@@ -112,17 +111,17 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             for i in range(5):
                 service._check_global_schedule()
             
-            # Verify _queue_all_channels was called only ONCE
-            self.assertEqual(len(queue_all_calls), 1, 
-                           f"Expected 1 call to _queue_all_channels, got {len(queue_all_calls)}")
+            # Verify _perform_global_action was called only ONCE
+            self.assertEqual(len(global_action_calls), 1, 
+                           f"Expected 1 call to _perform_global_action, got {len(global_action_calls)}")
     
     def test_global_check_respects_daily_limit(self):
         """Test that global check only runs once per day."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method
-            service._queue_all_channels = Mock()
+            # Mock the _perform_global_action method
+            service._perform_global_action = Mock()
             
             # Set the scheduled time to earlier today
             now = datetime.now()
@@ -143,7 +142,7 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify _queue_all_channels was NOT called (already ran today)
-            service._queue_all_channels.assert_not_called()
+            service._perform_global_action.assert_not_called()
     
     def test_tracker_mark_global_check_updates_timestamp(self):
         """Test that ChannelUpdateTracker.mark_global_check updates the timestamp."""

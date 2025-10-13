@@ -42,7 +42,7 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
         """Test that check runs when current time is after scheduled time and hasn't run today."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to earlier today (e.g., 9:00 AM)
             now = datetime.now()
@@ -64,13 +64,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was called since we're past scheduled time
-            service._queue_all_channels.assert_called_once()
+            service._perform_global_action.assert_called_once()
     
     def test_does_not_run_before_scheduled_time(self):
         """Test that check does NOT run when current time is before scheduled time."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to later today (e.g., 23:59)
             service.config.update({
@@ -89,13 +89,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was NOT called
-            service._queue_all_channels.assert_not_called()
+            service._perform_global_action.assert_not_called()
     
     def test_does_not_run_twice_same_day(self):
         """Test that check does NOT run twice on the same day."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to earlier today
             now = datetime.now()
@@ -117,13 +117,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was NOT called (already ran today)
-            service._queue_all_channels.assert_not_called()
+            service._perform_global_action.assert_not_called()
     
     def test_runs_if_last_check_was_yesterday(self):
         """Test that check runs if last check was yesterday."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to earlier today
             now = datetime.now()
@@ -146,13 +146,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was called (new day)
-            service._queue_all_channels.assert_called_once()
+            service._perform_global_action.assert_called_once()
     
     def test_monthly_check_runs_on_correct_day(self):
         """Test that monthly check runs on the correct day of month."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to monthly on current day
             now = datetime.now()
@@ -176,13 +176,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was called
-            service._queue_all_channels.assert_called_once()
+            service._perform_global_action.assert_called_once()
     
     def test_monthly_check_does_not_run_on_wrong_day(self):
         """Test that monthly check does NOT run on wrong day of month."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
-            service._queue_all_channels = Mock()
+            service._perform_global_action = Mock()
             
             # Set schedule to monthly on a different day
             now = datetime.now()
@@ -207,7 +207,7 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was NOT called (wrong day)
-            service._queue_all_channels.assert_not_called()
+            service._perform_global_action.assert_not_called()
 
 
 if __name__ == '__main__':

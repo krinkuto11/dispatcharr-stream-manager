@@ -911,6 +911,8 @@ class StreamCheckerService:
             logging.info("STARTING GLOBAL ACTION")
             logging.info("=" * 80)
             
+            automation_manager = None
+            
             # Step 1: Update M3U playlists
             logging.info("Step 1/3: Updating M3U playlists...")
             try:
@@ -927,11 +929,14 @@ class StreamCheckerService:
             # Step 2: Match and assign streams
             logging.info("Step 2/3: Matching and assigning streams...")
             try:
-                assignments = automation_manager.discover_and_assign_streams()
-                if assignments:
-                    logging.info(f"✓ Assigned streams to {len(assignments)} channels")
+                if automation_manager is not None:
+                    assignments = automation_manager.discover_and_assign_streams()
+                    if assignments:
+                        logging.info(f"✓ Assigned streams to {len(assignments)} channels")
+                    else:
+                        logging.info("✓ No new stream assignments")
                 else:
-                    logging.info("✓ No new stream assignments")
+                    logging.warning("⚠ Skipping stream matching - automation manager not available")
             except Exception as e:
                 logging.error(f"✗ Failed to match streams: {e}")
             
