@@ -295,14 +295,20 @@ Streams are tracked per channel:
 
 Existing installations will automatically use Pipeline 1.5 (the default). To change:
 
-1. Via API:
+1. **Via Web UI** (Recommended):
+   - Navigate to **Configuration** page
+   - Select your desired pipeline from the pipeline selection cards
+   - Configure schedule if using pipelines 1.5, 2.5, or 3
+   - Click **Save Settings**
+
+2. Via API:
 ```bash
 curl -X PUT http://localhost:3000/api/stream-checker/config \
   -H "Content-Type: application/json" \
   -d '{"pipeline_mode": "pipeline_2_5"}'
 ```
 
-2. Via Configuration File:
+3. Via Configuration File:
 Edit `/app/data/stream_checker_config.json`:
 ```json
 {
@@ -310,7 +316,7 @@ Edit `/app/data/stream_checker_config.json`:
 }
 ```
 
-3. Restart the service for changes to take effect.
+Note: Changes via web UI or API take effect immediately without restart.
 
 ---
 
@@ -328,10 +334,35 @@ All pipeline modes are thoroughly tested:
 
 ---
 
+## UI Configuration
+
+The web interface provides a unified **Configuration** page where you can:
+
+1. **Select Pipeline Mode**: Choose from 5 pipeline modes with clear descriptions
+   - Pipeline 1: Update → Match → Check (with 2hr immunity)
+   - Pipeline 1.5: Pipeline 1 + Scheduled Global Action
+   - Pipeline 2: Update → Match only (no automatic checking)
+   - Pipeline 2.5: Pipeline 2 + Scheduled Global Action
+   - Pipeline 3: Only Scheduled Global Action
+
+2. **Configure Schedule**: For pipelines with scheduled actions (1.5, 2.5, 3)
+   - Set frequency (daily or monthly)
+   - Choose exact time (hour and minute)
+   - For monthly: select day of month
+
+3. **Adjust Settings**: Only relevant settings are shown based on selected pipeline
+   - Update intervals (for pipelines 1, 1.5, 2, 2.5)
+   - Stream analysis parameters
+   - Queue settings
+
+**Stream Checker Page**: Monitor real-time statistics and progress
+- View current pipeline and schedule
+- Manually trigger Global Action
+- Monitor queue status and check progress
+
 ## Future Enhancements
 
 Potential future improvements:
-- UI for selecting pipeline mode
 - Per-channel pipeline overrides
 - Custom pipeline schedules per channel
 - Analytics dashboard showing check frequency and patterns
