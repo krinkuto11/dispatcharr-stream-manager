@@ -955,6 +955,36 @@ def queue_all_channels():
         logging.error(f"Error queueing all channels: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stream-checker/global-action', methods=['POST'])
+def trigger_global_action():
+    """Trigger a manual global action (Update M3U, Match streams, Check all channels).
+    
+    This performs a complete global action that:
+    1. Reloads enabled M3U accounts
+    2. Matches new streams with regex patterns
+    3. Checks every channel, bypassing 2-hour immunity
+    """
+    try:
+        service = get_stream_checker_service()
+        
+        if not service.running:
+            return jsonify({"error": "Stream checker service is not running"}), 400
+        
+        success = service.trigger_global_action()
+        
+        if success:
+            return jsonify({
+                "message": "Global action triggered successfully",
+                "status": "in_progress",
+                "description": "Update, Match, and Check all channels in progress"
+            })
+        else:
+            return jsonify({"error": "Failed to trigger global action"}), 500
+    
+    except Exception as e:
+        logging.error(f"Error triggering global action: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Serve React app for all frontend routes (catch-all - must be last!)
 @app.route('/<path:path>')
 def serve_frontend(path):
