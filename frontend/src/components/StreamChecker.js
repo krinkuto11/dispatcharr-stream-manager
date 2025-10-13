@@ -21,9 +21,7 @@ import {
   PlayArrow as StartIcon,
   Stop as StopIcon,
   Refresh as RefreshIcon,
-  Settings as SettingsIcon,
   CheckCircle as CheckIcon,
-  Queue as QueueIcon,
   PlaylistPlay as GlobalActionIcon
 } from '@mui/icons-material';
 import { streamCheckerAPI } from '../services/api';
@@ -88,18 +86,7 @@ function StreamChecker() {
     }
   };
 
-  const handleQueueAll = async () => {
-    try {
-      setActionLoading('queueAll');
-      const response = await streamCheckerAPI.queueAllChannels();
-      setSuccess(response.data?.message || 'All channels queued for checking');
-      await loadStatus();
-    } catch (err) {
-      setError('Failed to queue all channels');
-    } finally {
-      setActionLoading('');
-    }
-  };
+
 
   const handleGlobalAction = async () => {
     try {
@@ -327,17 +314,6 @@ function StreamChecker() {
                   </Tooltip>
                   <Button
                     size="small"
-                    variant="contained"
-                    color="primary"
-                    onClick={handleQueueAll}
-                    disabled={actionLoading === 'queueAll' || !status?.running}
-                    startIcon={<QueueIcon />}
-                    sx={{ mr: 1 }}
-                  >
-                    {actionLoading === 'queueAll' ? 'Queueing...' : 'Queue All Channels'}
-                  </Button>
-                  <Button
-                    size="small"
                     variant="outlined"
                     color="error"
                     onClick={handleClearQueue}
@@ -383,21 +359,14 @@ function StreamChecker() {
         <Grid item xs={12} md={6}>
           <Card>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
-                  Configuration
-                </Typography>
-                <Tooltip title="Configure stream checker settings">
-                  <IconButton size="small" color="primary">
-                    <SettingsIcon />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              <Typography variant="h6" gutterBottom>
+                Pipeline Information
+              </Typography>
               <Divider sx={{ mb: 2 }} />
               <List dense>
                 <ListItem>
                   <ListItemText
-                    primary="Pipeline Mode"
+                    primary="Active Pipeline"
                     secondary={(() => {
                       const mode = status?.config?.pipeline_mode || 'pipeline_1_5';
                       const modeNames = {
@@ -411,25 +380,21 @@ function StreamChecker() {
                     })()}
                   />
                 </ListItem>
+                {['pipeline_1_5', 'pipeline_2_5', 'pipeline_3'].includes(status?.config?.pipeline_mode) && (
+                  <ListItem>
+                    <ListItemText
+                      primary="Scheduled Global Action"
+                      secondary={
+                        config.global_check_schedule
+                          ? `${config.global_check_schedule.frequency || 'daily'} at ${config.global_check_schedule.hour}:${String(config.global_check_schedule.minute).padStart(2, '0')}`
+                          : 'Not configured'
+                      }
+                    />
+                  </ListItem>
+                )}
                 <ListItem>
                   <ListItemText
-                    primary="Global Check Schedule"
-                    secondary={
-                      config.global_check_schedule?.enabled
-                        ? `${config.global_check_schedule.frequency || 'daily'} at ${config.global_check_schedule.hour}:${String(config.global_check_schedule.minute).padStart(2, '0')}`
-                        : 'Disabled'
-                    }
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Check on M3U Update"
-                    secondary={config.queue_settings?.check_on_update ? 'Yes' : 'No'}
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemText
-                    primary="Last Global Check"
+                    primary="Last Global Action"
                     secondary={
                       status?.last_global_check
                         ? new Date(status.last_global_check).toLocaleString()
