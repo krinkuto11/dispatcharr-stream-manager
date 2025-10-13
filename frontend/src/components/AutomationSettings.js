@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   TextField,
-  FormGroup,
   FormControlLabel,
   Switch,
   Button,
@@ -118,7 +117,7 @@ function AutomationSettings() {
     );
   }
 
-  const pipelineMode = streamCheckerConfig?.pipeline_mode || 'pipeline_1_5';
+  const pipelineMode = streamCheckerConfig?.pipeline_mode;
   
   // Determine which settings to show based on pipeline mode
   const showScheduleSettings = ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3'].includes(pipelineMode);
@@ -142,7 +141,7 @@ function AutomationSettings() {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {/* Pipeline Selection */}
         <Grid item xs={12}>
           <Card>
@@ -253,6 +252,24 @@ function AutomationSettings() {
             </CardContent>
           </Card>
         </Grid>
+        
+        {/* No Active Pipeline Card - Show when no pipeline is selected */}
+        {!pipelineMode && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Alert severity="warning">
+                  <Typography variant="h6" gutterBottom>
+                    No Active Pipeline
+                  </Typography>
+                  <Typography variant="body2">
+                    Please select a pipeline above to configure automation settings. All configuration options will appear once a pipeline is selected.
+                  </Typography>
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         {/* General Settings - Only show for pipelines that have automatic updates */}
         {showUpdateInterval && (
@@ -279,30 +296,21 @@ function AutomationSettings() {
         )}
 
         {/* Stream Checker Service */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Stream Checker Service
-              </Typography>
-              
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={streamCheckerConfig.enabled !== false}
-                    onChange={(e) => handleStreamCheckerConfigChange('enabled', e.target.checked)}
-                  />
-                }
-                label="Enable Automation Service Auto-start"
-                sx={{ mb: 2 }}
-              />
-              
-              <Typography variant="body2" color="text.secondary">
-                When enabled, the stream checker service will automatically start when the application launches.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        {pipelineMode && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Stream Checker Service
+                </Typography>
+                
+                <Alert severity="info">
+                  The stream checker service automatically starts when the application launches with a pipeline selected.
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         {/* Global Check Schedule - Only show for pipelines that have scheduled actions */}
         {showScheduleSettings && (
@@ -375,54 +383,16 @@ function AutomationSettings() {
           </Grid>
         )}
 
-        {/* Enabled Features */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Enabled Features
-              </Typography>
-              
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.auto_playlist_update !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.auto_playlist_update', e.target.checked)}
-                    />
-                  }
-                  label="Auto Playlist Update"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.auto_stream_discovery !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.auto_stream_discovery', e.target.checked)}
-                    />
-                  }
-                  label="Auto Stream Discovery"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.changelog_tracking !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.changelog_tracking', e.target.checked)}
-                    />
-                  }
-                  label="Changelog Tracking"
-                />
-              </FormGroup>
-            </CardContent>
-          </Card>
-        </Grid>
 
-        {/* Stream Analysis Settings */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Stream Analysis Settings
-              </Typography>
+
+        {/* Stream Analysis Settings - Only show when a pipeline is selected */}
+        {pipelineMode && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Stream Analysis Settings
+                </Typography>
               
               <TextField
                 label="FFmpeg Duration (seconds)"
@@ -469,15 +439,17 @@ function AutomationSettings() {
               />
             </CardContent>
           </Card>
-        </Grid>
+          </Grid>
+        )}
 
-        {/* Queue Settings */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Queue Settings
-              </Typography>
+        {/* Queue Settings - Only show when a pipeline is selected */}
+        {pipelineMode && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Queue Settings
+                </Typography>
               
               <TextField
                 label="Maximum Queue Size"
@@ -517,10 +489,11 @@ function AutomationSettings() {
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
+          </Grid>
+        )}
       </Grid>
 
-      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="contained"
           onClick={handleSave}

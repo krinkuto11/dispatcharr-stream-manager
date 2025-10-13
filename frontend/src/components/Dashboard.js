@@ -16,7 +16,6 @@ import {
 } from '@mui/material';
 import {
   PlayArrow as StartIcon,
-  Stop as StopIcon,
   Refresh as RefreshIcon,
   PlaylistAdd as DiscoverIcon,
   CheckCircle as CheckIcon,
@@ -67,23 +66,7 @@ function Dashboard() {
     }
   };
 
-  const handleAutomationToggle = async () => {
-    try {
-      setActionLoading('automation');
-      if (status?.running) {
-        await automationAPI.stop();
-        setSuccess('Automation stopped successfully');
-      } else {
-        await automationAPI.start();
-        setSuccess('Automation started successfully');
-      }
-      await loadStatus();
-    } catch (err) {
-      setError(`Failed to ${status?.running ? 'stop' : 'start'} automation`);
-    } finally {
-      setActionLoading('');
-    }
-  };
+
 
   const handleRefreshPlaylist = async () => {
     try {
@@ -206,7 +189,7 @@ function Dashboard() {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={2}>
         {/* Automation Status Card */}
         <Grid item xs={12} md={6}>
           <Card>
@@ -214,27 +197,11 @@ function Dashboard() {
               <Typography variant="h6" gutterBottom>
                 Automation Status
               </Typography>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
+              <Box display="flex" alignItems="center" gap={2} mb={1}>
                 <Chip
                   label={status?.running ? 'Running' : 'Stopped'}
                   color={status?.running ? 'success' : 'default'}
                 />
-                <Button
-                  variant="contained"
-                  onClick={handleAutomationToggle}
-                  disabled={actionLoading === 'automation'}
-                  startIcon={
-                    actionLoading === 'automation' ? (
-                      <CircularProgress size={20} />
-                    ) : status?.running ? (
-                      <StopIcon />
-                    ) : (
-                      <StartIcon />
-                    )
-                  }
-                >
-                  {status?.running ? 'Stop' : 'Start'} Automation
-                </Button>
               </Box>
               <Typography variant="body2" color="text.secondary">
                 Last Playlist Update: {formatDateTime(status?.last_playlist_update)}
@@ -307,7 +274,7 @@ function Dashboard() {
               <Typography variant="h6" gutterBottom>
                 System Overview
               </Typography>
-              <Grid container spacing={3}>
+              <Grid container spacing={2}>
                 <Grid item xs={6} sm={3}>
                   <Box display="flex" alignItems="center" gap={1} mb={0.5}>
                     <ScheduleIcon color="action" fontSize="small" />
