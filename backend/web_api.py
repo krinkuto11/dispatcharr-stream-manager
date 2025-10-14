@@ -1026,7 +1026,8 @@ if __name__ == '__main__':
     except Exception as e:
         logging.error(f"Failed to auto-start stream checker service: {e}")
     
-    # Auto-start automation service if enabled and pipeline mode is not disabled
+    # Auto-start automation service if pipeline mode is not disabled
+    # When any pipeline other than disabled is selected, automation should auto-start
     try:
         manager = get_automation_manager()
         service = get_stream_checker_service()
@@ -1034,11 +1035,10 @@ if __name__ == '__main__':
         
         if pipeline_mode == 'disabled':
             logging.info("Automation service is disabled via pipeline mode")
-        elif manager.config.get('autostart_automation', False):
-            manager.start_automation()
-            logging.info("Automation service auto-started")
         else:
-            logging.info("Automation service autostart is disabled in configuration")
+            # Auto-start automation for any active pipeline
+            manager.start_automation()
+            logging.info(f"Automation service auto-started (mode: {pipeline_mode})")
     except Exception as e:
         logging.error(f"Failed to auto-start automation service: {e}")
     
