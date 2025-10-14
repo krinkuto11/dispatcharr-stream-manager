@@ -86,7 +86,7 @@ class StreamCheckConfig:
     DEFAULT_CONFIG = {
         'enabled': True,
         'check_interval': 300,  # DEPRECATED - checks now only triggered by M3U refresh
-        'pipeline_mode': 'pipeline_1_5',  # Pipeline mode: 'pipeline_1', 'pipeline_1_5', 'pipeline_2', 'pipeline_2_5', 'pipeline_3'
+        'pipeline_mode': 'pipeline_1_5',  # Pipeline mode: 'disabled', 'pipeline_1', 'pipeline_1_5', 'pipeline_2', 'pipeline_2_5', 'pipeline_3'
         'global_check_schedule': {
             'enabled': True,
             'frequency': 'daily',  # 'daily' or 'monthly'
@@ -818,14 +818,15 @@ class StreamCheckerService:
         """Queue channels that have received M3U updates.
         
         This respects the pipeline mode:
+        - Disabled: Skip all automation
         - Pipeline 1/1.5: Queue channels for checking
         - Pipeline 2/2.5: Skip checking (only update and match)
         - Pipeline 3: Skip checking (only scheduled global actions)
         """
         pipeline_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
         
-        # Pipelines 2, 2.5, and 3 don't check on update
-        if pipeline_mode in ['pipeline_2', 'pipeline_2_5', 'pipeline_3']:
+        # Disabled and Pipelines 2, 2.5, and 3 don't check on update
+        if pipeline_mode in ['disabled', 'pipeline_2', 'pipeline_2_5', 'pipeline_3']:
             logging.debug(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
             return
         
@@ -853,6 +854,7 @@ class StreamCheckerService:
         pipeline_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
         
         # Only pipelines with .5 suffix and pipeline_3 have scheduled global actions
+        # Disabled mode skips all automation
         if pipeline_mode not in ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3']:
             return
         

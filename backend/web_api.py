@@ -1011,21 +1011,30 @@ if __name__ == '__main__':
     
     logging.info(f"Starting StreamFlow for Dispatcharr Web API on {args.host}:{args.port}")
     
-    # Auto-start stream checker service if enabled
+    # Auto-start stream checker service if enabled and pipeline mode is not disabled
     try:
         service = get_stream_checker_service()
-        if service.config.get('enabled', True):
+        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        if pipeline_mode == 'disabled':
+            logging.info("Stream checker service is disabled via pipeline mode")
+        elif service.config.get('enabled', True):
             service.start()
-            logging.info("Stream checker service auto-started")
+            logging.info(f"Stream checker service auto-started (mode: {pipeline_mode})")
         else:
             logging.info("Stream checker service is disabled in configuration")
     except Exception as e:
         logging.error(f"Failed to auto-start stream checker service: {e}")
     
-    # Auto-start automation service if enabled
+    # Auto-start automation service if enabled and pipeline mode is not disabled
     try:
         manager = get_automation_manager()
-        if manager.config.get('autostart_automation', False):
+        service = get_stream_checker_service()
+        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        if pipeline_mode == 'disabled':
+            logging.info("Automation service is disabled via pipeline mode")
+        elif manager.config.get('autostart_automation', False):
             manager.start_automation()
             logging.info("Automation service auto-started")
         else:
