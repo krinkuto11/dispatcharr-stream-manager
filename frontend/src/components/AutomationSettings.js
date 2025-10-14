@@ -158,6 +158,24 @@ function AutomationSettings() {
                   value={pipelineMode}
                   onChange={(e) => handleStreamCheckerConfigChange('pipeline_mode', e.target.value)}
                 >
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'disabled' ? 2 : 1, borderColor: pipelineMode === 'disabled' ? 'error.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="disabled" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Disabled</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Complete automation system is in a non-working state. No automatic updates, matching, or checking will occur.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
                   <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_1' ? 2 : 1, borderColor: pipelineMode === 'pipeline_1' ? 'primary.main' : 'divider' }}>
                     <CardContent>
                       <FormControlLabel 
@@ -296,7 +314,7 @@ function AutomationSettings() {
         )}
 
         {/* Stream Checker Service */}
-        {pipelineMode && (
+        {pipelineMode && pipelineMode !== 'disabled' && (
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
@@ -305,7 +323,25 @@ function AutomationSettings() {
                 </Typography>
                 
                 <Alert severity="info">
-                  The stream checker service automatically starts when the application launches with a pipeline selected.
+                  The stream checker service automatically starts when the application launches with a pipeline other than "Disabled" selected.
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+        
+        {/* Disabled Mode Warning */}
+        {pipelineMode === 'disabled' && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Alert severity="warning">
+                  <Typography variant="h6" gutterBottom>
+                    Automation System Disabled
+                  </Typography>
+                  <Typography variant="body2">
+                    The complete automation system is currently disabled. No automatic updates, stream matching, or quality checking will occur. Select a pipeline above to enable automation.
+                  </Typography>
                 </Alert>
               </CardContent>
             </Card>

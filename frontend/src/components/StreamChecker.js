@@ -370,6 +370,7 @@ function StreamChecker() {
                     secondary={(() => {
                       const mode = status?.config?.pipeline_mode || 'pipeline_1_5';
                       const modeNames = {
+                        'disabled': 'Disabled',
                         'pipeline_1': 'Pipeline 1: Update → Match → Check (with 2hr immunity)',
                         'pipeline_1_5': 'Pipeline 1.5: Pipeline 1 + Scheduled Global Action',
                         'pipeline_2': 'Pipeline 2: Update → Match only (no checking)',
