@@ -850,7 +850,7 @@ class StreamCheckerService:
         
         On fresh start (no previous check recorded):
         - Only runs if current time is within ±10 minutes of scheduled time
-        - Otherwise marks timestamp to prevent immediate execution and wait for next scheduled time
+        - Otherwise waits for the scheduled time to arrive
         
         On subsequent checks (previous check exists):
         - Runs once per day/month after scheduled time has passed
@@ -878,7 +878,7 @@ class StreamCheckerService:
         scheduled_time_today = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
         
         # On fresh start (no previous check), only run if within the scheduled time window (±10 minutes)
-        # Otherwise, mark current time to prevent immediate execution
+        # Otherwise, do nothing and wait for the scheduled time to arrive
         if last_global is None:
             time_diff_minutes = abs((now - scheduled_time_today).total_seconds() / 60)
             if time_diff_minutes <= 10:
@@ -887,10 +887,9 @@ class StreamCheckerService:
                 self._perform_global_action()
                 self.update_tracker.mark_global_check()
             else:
-                # Fresh start but not within scheduled window, mark to prevent immediate run
-                # This ensures next run will be at the scheduled time tomorrow
-                self.update_tracker.mark_global_check()
-                logging.debug(f"Fresh start outside scheduled window (±10 min of {scheduled_hour:02d}:{scheduled_minute:02d}), marked to wait for next scheduled time")
+                # Fresh start but not within scheduled window, do nothing and wait
+                # The scheduler will check again later when the scheduled time arrives
+                logging.debug(f"Fresh start outside scheduled window (±10 min of {scheduled_hour:02d}:{scheduled_minute:02d}), waiting for scheduled time")
             return
         
         # Determine if we should run based on frequency and last check time

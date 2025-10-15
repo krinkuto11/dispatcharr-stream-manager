@@ -66,9 +66,9 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
             # Verify queue was NOT called since we're outside the time window on fresh start
             service._perform_global_action.assert_not_called()
             
-            # Verify that mark_global_check was called to prevent future immediate runs
+            # Verify that mark_global_check was NOT called - we wait for scheduled time
             last_check = service.update_tracker.get_last_global_check()
-            self.assertIsNotNone(last_check)
+            self.assertIsNone(last_check, "Should not mark timestamp on fresh start outside window")
     
     def test_runs_on_fresh_start_within_window(self):
         """Test that check DOES run on fresh start when within scheduled time window (±10 min)."""
