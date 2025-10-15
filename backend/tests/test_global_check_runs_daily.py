@@ -38,13 +38,13 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
-    def test_runs_after_scheduled_time_on_same_day(self):
-        """Test that check runs when current time is after scheduled time and hasn't run today."""
+    def test_does_not_run_on_fresh_start_outside_window(self):
+        """Test that check does NOT run on fresh start when outside scheduled time window."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             service._perform_global_action = Mock()
             
-            # Set schedule to earlier today (e.g., 9:00 AM)
+            # Set schedule to earlier today (e.g., 9:00 AM) - more than 10 minutes ago
             now = datetime.now()
             earlier_hour = max(0, now.hour - 2)  # 2 hours ago
             
@@ -57,13 +57,44 @@ class TestGlobalCheckRunsDaily(unittest.TestCase):
                 }
             })
             
-            # Ensure no check has run today
+            # Ensure no check has run (fresh start)
             service.update_tracker.updates['last_global_check'] = None
             
             # Call check
             service._check_global_schedule()
             
-            # Verify queue was called since we're past scheduled time
+            # Verify queue was NOT called since we're outside the time window on fresh start
+            service._perform_global_action.assert_not_called()
+            
+            # Verify that mark_global_check was NOT called - we wait for scheduled time
+            last_check = service.update_tracker.get_last_global_check()
+            self.assertIsNone(last_check, "Should not mark timestamp on fresh start outside window")
+    
+    def test_runs_on_fresh_start_within_window(self):
+        """Test that check DOES run on fresh start when within scheduled time window (±10 min)."""
+        with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
+            service = StreamCheckerService()
+            service._perform_global_action = Mock()
+            
+            # Set schedule to within 5 minutes of current time
+            now = datetime.now()
+            
+            service.config.update({
+                'global_check_schedule': {
+                    'enabled': True,
+                    'frequency': 'daily',
+                    'hour': now.hour,
+                    'minute': now.minute
+                }
+            })
+            
+            # Ensure no check has run (fresh start)
+            service.update_tracker.updates['last_global_check'] = None
+            
+            # Call check
+            service._check_global_schedule()
+            
+            # Verify queue WAS called since we're within the time window on fresh start
             service._perform_global_action.assert_called_once()
     
     def test_does_not_run_before_scheduled_time(self):
