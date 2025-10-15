@@ -846,7 +846,16 @@ class StreamCheckerService:
             logging.info(f"Queued {len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
     
     def _check_global_schedule(self):
-        """Check if it's time for a scheduled global action."""
+        """Check if it's time for a scheduled global action.
+        
+        On fresh start (no previous check recorded):
+        - Only runs if current time is within ±10 minutes of scheduled time
+        - Otherwise marks timestamp to prevent immediate execution and wait for next scheduled time
+        
+        On subsequent checks (previous check exists):
+        - Runs once per day/month after scheduled time has passed
+        - Prevents duplicate runs on the same day
+        """
         if not self.config.get('global_check_schedule.enabled', True):
             return
         
