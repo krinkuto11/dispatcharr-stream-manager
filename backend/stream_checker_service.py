@@ -865,6 +865,25 @@ class StreamCheckerService:
         
         last_global = self.update_tracker.get_last_global_check()
         
+        # Calculate scheduled time for today
+        scheduled_time_today = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
+        
+        # On fresh start (no previous check), only run if within the scheduled time window (±10 minutes)
+        # Otherwise, mark current time to prevent immediate execution
+        if last_global is None:
+            time_diff_minutes = abs((now - scheduled_time_today).total_seconds() / 60)
+            if time_diff_minutes <= 10:
+                # We're within the scheduled window on fresh start, run the check
+                logging.info(f"Starting scheduled {frequency} global action (mode: {pipeline_mode})")
+                self._perform_global_action()
+                self.update_tracker.mark_global_check()
+            else:
+                # Fresh start but not within scheduled window, mark to prevent immediate run
+                # This ensures next run will be at the scheduled time tomorrow
+                self.update_tracker.mark_global_check()
+                logging.debug(f"Fresh start outside scheduled window (±10 min of {scheduled_hour:02d}:{scheduled_minute:02d}), marked to wait for next scheduled time")
+            return
+        
         # Determine if we should run based on frequency and last check time
         should_run = False
         
@@ -872,26 +891,18 @@ class StreamCheckerService:
             scheduled_day = self.config.get('global_check_schedule.day_of_month', 1)
             # Check if it's the correct day of the month
             if now.day == scheduled_day:
-                if last_global:
-                    last_check_time = datetime.fromisoformat(last_global)
-                    # Check if last run was in a different month or more than 30 days ago
-                    if last_check_time.month != now.month or last_check_time.year != now.year or (now - last_check_time).days >= 30:
-                        should_run = True
-                else:
+                last_check_time = datetime.fromisoformat(last_global)
+                # Check if last run was in a different month or more than 30 days ago
+                if last_check_time.month != now.month or last_check_time.year != now.year or (now - last_check_time).days >= 30:
                     should_run = True
         else:  # daily
-            if last_global:
-                last_check_time = datetime.fromisoformat(last_global)
-                # Check if last run was on a different day (not today)
-                if last_check_time.date() != now.date():
-                    should_run = True
-            else:
+            last_check_time = datetime.fromisoformat(last_global)
+            # Check if last run was on a different day (not today)
+            if last_check_time.date() != now.date():
                 should_run = True
         
         # Only run if we're past the scheduled time today and haven't run yet
         if should_run:
-            scheduled_time_today = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
-            
             # Run if current time is past scheduled time
             if now >= scheduled_time_today:
                 # Perform global action based on pipeline mode
