@@ -5,13 +5,16 @@ import {
   Card,
   CardContent,
   TextField,
-  FormGroup,
   FormControlLabel,
   Switch,
   Button,
   Alert,
   CircularProgress,
-  Grid
+  Grid,
+  RadioGroup,
+  Radio,
+  FormControl,
+  FormLabel
 } from '@mui/material';
 import { automationAPI, streamCheckerAPI } from '../services/api';
 
@@ -85,7 +88,7 @@ function AutomationSettings() {
         setStreamCheckerConfig(prev => ({
           ...prev,
           [parent]: {
-            ...prev[parent],
+            ...(prev[parent] || {}),
             [child]: value
           }
         }));
@@ -114,10 +117,16 @@ function AutomationSettings() {
     );
   }
 
+  const pipelineMode = streamCheckerConfig?.pipeline_mode;
+  
+  // Determine which settings to show based on pipeline mode
+  const showScheduleSettings = ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3'].includes(pipelineMode);
+  const showUpdateInterval = ['pipeline_1', 'pipeline_1_5', 'pipeline_2', 'pipeline_2_5'].includes(pipelineMode);
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        Automation Settings
+        Configuration
       </Typography>
 
       {error && (
@@ -132,120 +141,395 @@ function AutomationSettings() {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        {/* General Settings */}
-        <Grid item xs={12} md={6}>
+      <Grid container spacing={2}>
+        {/* Pipeline Selection */}
+        <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                General Settings
+              <Typography variant="h5" gutterBottom>
+                Pipeline Selection
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Select the automation pipeline that best fits your needs. Each pipeline determines when and how streams are checked.
               </Typography>
               
-              <TextField
-                label="Playlist Update Interval (minutes)"
-                type="number"
-                value={config.playlist_update_interval_minutes || 5}
-                onChange={(e) => handleConfigChange('playlist_update_interval_minutes', parseInt(e.target.value))}
-                fullWidth
-                margin="normal"
-                helperText="How often to check for playlist updates"
-              />
+              <FormControl component="fieldset" fullWidth>
+                <RadioGroup
+                  value={pipelineMode}
+                  onChange={(e) => handleStreamCheckerConfigChange('pipeline_mode', e.target.value)}
+                >
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'disabled' ? 2 : 1, borderColor: pipelineMode === 'disabled' ? 'error.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="disabled" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Disabled</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Complete automation system is in a non-working state. No automatic updates, matching, or checking will occur.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_1' ? 2 : 1, borderColor: pipelineMode === 'pipeline_1' ? 'primary.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="pipeline_1" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Pipeline 1: Update → Match → Check (with 2hr immunity)</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Automatic M3U updates, stream matching, and quality checking. Recently checked streams are cached for 2 hours to reduce connection usage.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_1_5' ? 2 : 1, borderColor: pipelineMode === 'pipeline_1_5' ? 'primary.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="pipeline_1_5" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Pipeline 1.5: Pipeline 1 + Scheduled Global Action</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Like Pipeline 1, but adds a scheduled Global Action (daily or monthly) that checks ALL channels during off-peak hours, bypassing the 2-hour immunity.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_2' ? 2 : 1, borderColor: pipelineMode === 'pipeline_2' ? 'primary.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="pipeline_2" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Pipeline 2: Update → Match only (no automatic checking)</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Updates M3U playlists and matches streams to channels, but NO automatic stream quality checking. Best for strict connection limits.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_2_5' ? 2 : 1, borderColor: pipelineMode === 'pipeline_2_5' ? 'primary.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="pipeline_2_5" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Pipeline 2.5: Pipeline 2 + Scheduled Global Action</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Like Pipeline 2, but adds a scheduled Global Action (daily or monthly) that checks ALL channels during off-peak hours.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card variant="outlined" sx={{ mb: 2, border: pipelineMode === 'pipeline_3' ? 2 : 1, borderColor: pipelineMode === 'pipeline_3' ? 'primary.main' : 'divider' }}>
+                    <CardContent>
+                      <FormControlLabel 
+                        value="pipeline_3" 
+                        control={<Radio />} 
+                        label={
+                          <Box>
+                            <Typography variant="h6">Pipeline 3: Only Scheduled Global Action</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              NO automatic updates or checking. ONLY runs the scheduled Global Action (daily or monthly) at a specific time. Complete control over when operations occur.
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ alignItems: 'flex-start' }}
+                      />
+                    </CardContent>
+                  </Card>
+                </RadioGroup>
+              </FormControl>
             </CardContent>
           </Card>
         </Grid>
+        
+        {/* No Active Pipeline Card - Show when no pipeline is selected */}
+        {!pipelineMode && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Alert severity="warning">
+                  <Typography variant="h6" gutterBottom>
+                    No Active Pipeline
+                  </Typography>
+                  <Typography variant="body2">
+                    Please select a pipeline above to configure automation settings. All configuration options will appear once a pipeline is selected.
+                  </Typography>
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
-        {/* Global Check Schedule */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Global Check Schedule
-              </Typography>
+        {/* General Settings - Only show for pipelines that have automatic updates */}
+        {showUpdateInterval && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Update Interval
+                </Typography>
+                
+                <TextField
+                  label="Playlist Update Interval (minutes)"
+                  type="number"
+                  value={config.playlist_update_interval_minutes || 5}
+                  onChange={(e) => handleConfigChange('playlist_update_interval_minutes', parseInt(e.target.value))}
+                  fullWidth
+                  margin="normal"
+                  helperText="How often to check for playlist updates"
+                  inputProps={{ min: 1, max: 1440 }}
+                />
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Stream Checker Service */}
+        {pipelineMode && pipelineMode !== 'disabled' && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Stream Checker Service
+                </Typography>
+                
+                <Alert severity="info">
+                  The stream checker service automatically starts when the application launches with a pipeline other than "Disabled" selected.
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+        
+        {/* Disabled Mode Warning */}
+        {pipelineMode === 'disabled' && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Alert severity="warning">
+                  <Typography variant="h6" gutterBottom>
+                    Automation System Disabled
+                  </Typography>
+                  <Typography variant="body2">
+                    The complete automation system is currently disabled. No automatic updates, stream matching, or quality checking will occur. Select a pipeline above to enable automation.
+                  </Typography>
+                </Alert>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Global Check Schedule - Only show for pipelines that have scheduled actions */}
+        {showScheduleSettings && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Global Check Schedule
+                </Typography>
+                
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Configure when the scheduled Global Action runs. This performs a complete cycle: Updates all M3U playlists, matches all streams, and checks ALL channels (bypassing the 2-hour immunity).
+                </Typography>
+                
+                <FormControl component="fieldset" sx={{ mb: 2 }}>
+                  <FormLabel component="legend">Frequency</FormLabel>
+                  <RadioGroup
+                    row
+                    value={streamCheckerConfig.global_check_schedule?.frequency ?? 'daily'}
+                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.frequency', e.target.value)}
+                  >
+                    <FormControlLabel 
+                      value="daily" 
+                      control={<Radio />} 
+                      label="Daily" 
+                    />
+                    <FormControlLabel 
+                      value="monthly" 
+                      control={<Radio />} 
+                      label="Monthly" 
+                    />
+                  </RadioGroup>
+                </FormControl>
+                
+                {(streamCheckerConfig.global_check_schedule?.frequency ?? 'daily') === 'monthly' && (
+                  <TextField
+                    label="Day of Month"
+                    type="number"
+                    value={streamCheckerConfig.global_check_schedule?.day_of_month ?? 1}
+                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.day_of_month', parseInt(e.target.value))}
+                    inputProps={{ min: 1, max: 31 }}
+                    fullWidth
+                    margin="normal"
+                    helperText="Day of the month to run the check (1-31)"
+                  />
+                )}
+                
+                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  <TextField
+                    label="Hour (0-23)"
+                    type="number"
+                    value={streamCheckerConfig.global_check_schedule?.hour ?? 3}
+                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.hour', parseInt(e.target.value))}
+                    inputProps={{ min: 0, max: 23 }}
+                    sx={{ flex: 1 }}
+                    helperText="Hour (24-hour format)"
+                  />
+                  <TextField
+                    label="Minute (0-59)"
+                    type="number"
+                    value={streamCheckerConfig.global_check_schedule?.minute ?? 0}
+                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.minute', parseInt(e.target.value))}
+                    inputProps={{ min: 0, max: 59 }}
+                    sx={{ flex: 1 }}
+                    helperText="Minute"
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
+
+
+        {/* Stream Analysis Settings - Only show when a pipeline is selected */}
+        {pipelineMode && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Stream Analysis Settings
+                </Typography>
+              
+              <TextField
+                label="FFmpeg Duration (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.ffmpeg_duration ?? 30}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.ffmpeg_duration', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Duration to analyze each stream"
+                inputProps={{ min: 5, max: 120 }}
+              />
+              
+              <TextField
+                label="Timeout (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.timeout ?? 30}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.timeout', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Timeout for stream analysis operations"
+                inputProps={{ min: 10, max: 300 }}
+              />
+              
+              <TextField
+                label="Retry Attempts"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.retries ?? 1}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.retries', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Number of retry attempts for failed checks"
+                inputProps={{ min: 0, max: 5 }}
+              />
+              
+              <TextField
+                label="Retry Delay (seconds)"
+                type="number"
+                value={streamCheckerConfig.stream_analysis?.retry_delay ?? 10}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.retry_delay', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Delay between retry attempts"
+                inputProps={{ min: 5, max: 60 }}
+              />
+            </CardContent>
+          </Card>
+          </Grid>
+        )}
+
+        {/* Queue Settings - Only show when a pipeline is selected */}
+        {pipelineMode && (
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Queue Settings
+                </Typography>
+              
+              <TextField
+                label="Maximum Queue Size"
+                type="number"
+                value={streamCheckerConfig.queue?.max_size ?? 1000}
+                onChange={(e) => handleStreamCheckerConfigChange('queue.max_size', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Maximum number of channels in the checking queue"
+                inputProps={{ min: 10, max: 10000 }}
+              />
+              
+              <TextField
+                label="Max Channels Per Run"
+                type="number"
+                value={streamCheckerConfig.queue?.max_channels_per_run ?? 50}
+                onChange={(e) => handleStreamCheckerConfigChange('queue.max_channels_per_run', parseInt(e.target.value))}
+                fullWidth
+                margin="normal"
+                helperText="Maximum channels to check in a single run"
+                inputProps={{ min: 1, max: 500 }}
+              />
               
               <FormControlLabel
                 control={
                   <Switch
-                    checked={streamCheckerConfig.global_check_schedule?.enabled !== false}
-                    onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.enabled', e.target.checked)}
+                    checked={streamCheckerConfig.queue?.check_on_update !== false}
+                    onChange={(e) => handleStreamCheckerConfigChange('queue.check_on_update', e.target.checked)}
                   />
                 }
-                label="Enable Scheduled Global Check"
-                sx={{ mb: 2 }}
+                label="Check Channels on M3U Update"
+                sx={{ mt: 2 }}
               />
               
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Configure the time when the daily global channel check runs. This check processes all channels to verify stream quality.
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Automatically queue channels for checking when they receive M3U playlist updates.
               </Typography>
-              
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  label="Hour (0-23)"
-                  type="number"
-                  value={streamCheckerConfig.global_check_schedule?.hour ?? 3}
-                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.hour', parseInt(e.target.value))}
-                  inputProps={{ min: 0, max: 23 }}
-                  disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
-                  sx={{ flex: 1 }}
-                  helperText="Hour (24-hour format)"
-                />
-                <TextField
-                  label="Minute (0-59)"
-                  type="number"
-                  value={streamCheckerConfig.global_check_schedule?.minute ?? 0}
-                  onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.minute', parseInt(e.target.value))}
-                  inputProps={{ min: 0, max: 59 }}
-                  disabled={streamCheckerConfig.global_check_schedule?.enabled === false}
-                  sx={{ flex: 1 }}
-                  helperText="Minute"
-                />
-              </Box>
             </CardContent>
           </Card>
-        </Grid>
-
-        {/* Enabled Features */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Enabled Features
-              </Typography>
-              
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.auto_playlist_update !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.auto_playlist_update', e.target.checked)}
-                    />
-                  }
-                  label="Auto Playlist Update"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.auto_stream_discovery !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.auto_stream_discovery', e.target.checked)}
-                    />
-                  }
-                  label="Auto Stream Discovery"
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={config.enabled_features?.changelog_tracking !== false}
-                      onChange={(e) => handleConfigChange('enabled_features.changelog_tracking', e.target.checked)}
-                    />
-                  }
-                  label="Changelog Tracking"
-                />
-              </FormGroup>
-            </CardContent>
-          </Card>
-        </Grid>
+          </Grid>
+        )}
       </Grid>
 
-      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
         <Button
           variant="contained"
           onClick={handleSave}

@@ -340,23 +340,35 @@ docker compose -f docker-compose.pr-test.yml up -d
 **Workflow:** `.github/workflows/ci.yml`
 - Triggers: 
   - Release published (pushes to GHCR)
-  - Pull requests (builds only, no push)
-- Steps:
-  1. Checkout code
-  2. Setup Node.js 18
-  3. Install frontend dependencies
-  4. Build frontend
-  5. Setup Docker Buildx
-  6. Cache Docker layers
-  7. Login to GHCR (release only)
-  8. Build and push image (push only on release)
+  - Merged pull requests to dev (pushes pr-test tag)
+- Jobs:
+  1. **Build Job (Matrix)**:
+     - Runs on native runners for each architecture:
+       - `ubuntu-latest` for linux/amd64
+       - `ubuntu-22.04-arm` for linux/arm64
+     - Steps per platform:
+       1. Checkout code
+       2. Setup Node.js 18
+       3. Install frontend dependencies
+       4. Build frontend
+       5. Setup Docker Buildx
+       6. Cache Docker layers (architecture-specific)
+       7. Login to GHCR
+       8. Build and push image by digest
+       9. Upload digest artifact
+  2. **Merge Job**:
+     - Combines architecture-specific builds into multi-arch manifest
+     - Creates and pushes final tagged images
+- Platforms: linux/amd64, linux/arm64 (native builds)
 - Output (on release): 
   - `ghcr.io/krinkuto11/streamflow:latest`
   - `ghcr.io/krinkuto11/streamflow:<version>` (e.g., v1.0.0)
   - `ghcr.io/krinkuto11/streamflow:<major>.<minor>` (e.g., 1.0)
   - `ghcr.io/krinkuto11/streamflow:<major>` (e.g., 1)
+- Output (on merged PR to dev):
+  - `ghcr.io/krinkuto11/streamflow:pr-test`
 
-**Status:** Configured to push only on release
+**Status:** Configured with native ARM runner support for faster, more reliable ARM builds
 
 ---
 

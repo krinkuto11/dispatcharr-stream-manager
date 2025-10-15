@@ -22,8 +22,10 @@ To publish a new version to GitHub Container Registry (GHCR), you need to create
 3. **Automated Build and Push**
    - Once the release is published, GitHub Actions will automatically:
      - Build the frontend
-     - Build the Docker image
-     - Push to GHCR with multiple tags:
+     - Build Docker images for both architectures using native runners:
+       - linux/amd64 on ubuntu-latest
+       - linux/arm64 on ubuntu-22.04-arm
+     - Combine into multi-arch manifest and push to GHCR with multiple tags:
        - `ghcr.io/krinkuto11/streamflow:latest`
        - `ghcr.io/krinkuto11/streamflow:v1.0.0`
        - `ghcr.io/krinkuto11/streamflow:1.0`
@@ -38,10 +40,11 @@ Use [Semantic Versioning](https://semver.org/):
 
 ### Pull Request Testing
 
-When you open a pull request:
-- The workflow will build and test your changes
-- Docker image will be built but **not pushed** to GHCR
-- This ensures all changes are validated before merging
+When you merge a pull request to the `dev` branch:
+- The workflow will build and test your changes on both architectures
+- Docker images will be built natively for linux/amd64 and linux/arm64
+- A multi-arch manifest will be created and pushed to GHCR with the `pr-test` tag
+- This allows testing the built images before creating an official release
 
 ## Troubleshooting
 

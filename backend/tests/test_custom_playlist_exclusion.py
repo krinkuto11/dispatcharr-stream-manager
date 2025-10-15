@@ -88,8 +88,12 @@ class TestCustomPlaylistExclusion(unittest.TestCase):
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
     @patch('automated_stream_manager.get_m3u_accounts')
-    def test_null_url_accounts_excluded(self, mock_get_accounts, mock_get_streams, mock_refresh):
-        """Test that accounts with null server_url and file_path are excluded."""
+    def test_null_url_accounts_not_excluded(self, mock_get_accounts, mock_get_streams, mock_refresh):
+        """Test that accounts with null server_url and file_path are NOT excluded (bug fix).
+        
+        This test was updated to reflect the fix for the edge case where disabled/file-based
+        accounts with null URLs were being incorrectly filtered out.
+        """
         mock_get_accounts.return_value = [
             {'id': 1, 'name': 'Valid Account', 'server_url': 'http://example.com/playlist.m3u'},
             {'id': 2, 'name': 'LocalAccount', 'server_url': None, 'file_path': None},
@@ -102,8 +106,10 @@ class TestCustomPlaylistExclusion(unittest.TestCase):
             manager.config['enabled_features']['changelog_tracking'] = False
             manager.refresh_playlists()
             
-            # Should only refresh account 1
-            mock_refresh.assert_called_once_with(account_id=1)
+            # Should refresh both accounts (we no longer filter based on null URLs)
+            self.assertEqual(mock_refresh.call_count, 2)
+            mock_refresh.assert_any_call(account_id=1)
+            mock_refresh.assert_any_call(account_id=2)
     
     @patch('automated_stream_manager.refresh_m3u_playlists')
     @patch('automated_stream_manager.get_streams')
@@ -164,6 +170,54 @@ class TestCustomPlaylistExclusion(unittest.TestCase):
             
             # Should fall back to refreshing all (legacy behavior)
             mock_refresh.assert_called_once_with()
+
+
+    @patch('automated_stream_manager.refresh_m3u_playlists')
+    @patch('automated_stream_manager.get_streams')
+    @patch('automated_stream_manager.get_m3u_accounts')
+    def test_inactive_accounts_excluded_from_refresh(self, mock_get_accounts, mock_get_streams, mock_refresh):
+        """Test that accounts with is_active=False are excluded from refresh."""
+        mock_get_streams.return_value = []
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Active Account', 'server_url': 'http://example.com', 'is_active': True},
+            {'id': 2, 'name': 'Inactive Account', 'server_url': 'http://inactive.com', 'is_active': False},
+            {'id': 3, 'name': 'Another Active', 'server_url': 'http://active2.com', 'is_active': True},
+        ]
+        
+        with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
+            manager = AutomatedStreamManager()
+            manager.config['enabled_m3u_accounts'] = []
+            manager.config['enabled_features']['changelog_tracking'] = False
+            manager.refresh_playlists()
+            
+            # Should only refresh active accounts (ids 1 and 3)
+            expected_calls = [call(account_id=1), call(account_id=3)]
+            mock_refresh.assert_has_calls(expected_calls, any_order=True)
+            self.assertEqual(mock_refresh.call_count, 2)
+    
+    @patch('automated_stream_manager.refresh_m3u_playlists')
+    @patch('automated_stream_manager.get_streams')
+    @patch('automated_stream_manager.get_m3u_accounts')
+    def test_inactive_and_custom_accounts_excluded(self, mock_get_accounts, mock_get_streams, mock_refresh):
+        """Test that both inactive and custom accounts are excluded from refresh."""
+        mock_get_streams.return_value = []
+        mock_get_accounts.return_value = [
+            {'id': 1, 'name': 'Active Account', 'server_url': 'http://example.com', 'is_active': True},
+            {'id': 2, 'name': 'Inactive Account', 'server_url': 'http://inactive.com', 'is_active': False},
+            {'id': 3, 'name': 'custom', 'server_url': None, 'is_active': True},
+            {'id': 4, 'name': 'Another Active', 'server_url': 'http://active2.com', 'is_active': True},
+        ]
+        
+        with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
+            manager = AutomatedStreamManager()
+            manager.config['enabled_m3u_accounts'] = []
+            manager.config['enabled_features']['changelog_tracking'] = False
+            manager.refresh_playlists()
+            
+            # Should only refresh active non-custom accounts (ids 1 and 4)
+            expected_calls = [call(account_id=1), call(account_id=4)]
+            mock_refresh.assert_has_calls(expected_calls, any_order=True)
+            self.assertEqual(mock_refresh.call_count, 2)
 
 
 if __name__ == '__main__':

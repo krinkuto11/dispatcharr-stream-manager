@@ -303,6 +303,7 @@ class AutomatedStreamManager:
         default_config = {
             "playlist_update_interval_minutes": 5,
             "enabled_m3u_accounts": [],  # Empty list means all accounts enabled
+            "autostart_automation": False,  # Don't auto-start by default
             "enabled_features": {
                 "auto_playlist_update": True,
                 "auto_stream_discovery": True,
@@ -340,14 +341,15 @@ class AutomatedStreamManager:
             streams_before = get_streams(log_result=False) if self.config.get("enabled_features", {}).get("changelog_tracking", True) else []
             before_stream_ids = {s.get('id'): s.get('name', '') for s in streams_before if isinstance(s, dict) and s.get('id')}
             
-            # Get all M3U accounts and filter out "custom" account
+            # Get all M3U accounts and filter out "custom" and non-active accounts
             all_accounts = get_m3u_accounts()
             if all_accounts:
                 # Filter out "custom" account (it doesn't need refresh as it's for locally added streams)
+                # and non-active accounts (per Dispatcharr API spec)
+                # Only filter by name, not by null URLs, as legitimate accounts may have these
                 non_custom_accounts = [
                     acc for acc in all_accounts
-                    if not (acc.get('name', '').lower() == 'custom' or 
-                           (acc.get('server_url') is None and acc.get('file_path') is None))
+                    if acc.get('name', '').lower() != 'custom' and acc.get('is_active', True)
                 ]
                 
                 # Perform refresh - check if we need to filter by enabled accounts
@@ -479,6 +481,53 @@ class AutomatedStreamManager:
             if not isinstance(all_streams, list):
                 logging.error(f"Invalid streams response format: expected list, got {type(all_streams).__name__}")
                 return {}
+            
+            # Filter streams by enabled M3U accounts
+            # Get all M3U accounts and filter by enabled and active status
+            all_accounts = get_m3u_accounts()
+            enabled_account_ids = set()
+            
+            if all_accounts:
+                # Filter out "custom" account and non-active accounts
+                non_custom_accounts = [
+                    acc for acc in all_accounts
+                    if acc.get('name', '').lower() != 'custom' and acc.get('is_active', True)
+                ]
+                
+                # Get enabled accounts from config
+                enabled_accounts_config = self.config.get("enabled_m3u_accounts", [])
+                
+                if enabled_accounts_config:
+                    # Only include accounts that are in the enabled list
+                    enabled_account_ids = set(
+                        acc.get('id') for acc in non_custom_accounts 
+                        if acc.get('id') in enabled_accounts_config and acc.get('id') is not None
+                    )
+                else:
+                    # If no specific accounts are enabled in config, use all non-custom active accounts
+                    enabled_account_ids = set(
+                        acc.get('id') for acc in non_custom_accounts 
+                        if acc.get('id') is not None
+                    )
+                
+                # Filter streams to only include those from enabled accounts
+                # Also include custom streams (is_custom=True) as they don't belong to an M3U account
+                filtered_streams = [
+                    stream for stream in all_streams
+                    if stream.get('is_custom', False) or stream.get('m3u_account') in enabled_account_ids
+                ]
+                
+                streams_filtered_count = len(all_streams) - len(filtered_streams)
+                if streams_filtered_count > 0:
+                    logging.info(f"Filtered out {streams_filtered_count} streams from disabled/inactive M3U accounts")
+                
+                all_streams = filtered_streams
+                
+                if not all_streams:
+                    logging.info("No streams found after filtering by enabled M3U accounts")
+                    return {}
+            else:
+                logging.warning("Could not fetch M3U accounts, using all streams")
             
             # Get all channels
             base_url = _get_base_url()

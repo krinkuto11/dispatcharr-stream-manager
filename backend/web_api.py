@@ -479,26 +479,28 @@ def refresh_playlist():
 
 @app.route('/api/m3u-accounts', methods=['GET'])
 def get_m3u_accounts_endpoint():
-    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist."""
+    """Get all M3U accounts from Dispatcharr, filtering out 'custom' account if no custom streams exist and non-active accounts."""
     try:
-        from api_utils import get_m3u_accounts, get_streams
+        from api_utils import get_m3u_accounts, has_custom_streams
         accounts = get_m3u_accounts()
         
         if accounts is None:
             return jsonify({"error": "Failed to fetch M3U accounts"}), 500
         
-        # Check if there are any custom streams
-        all_streams = get_streams(log_result=False)
-        has_custom_streams = any(s.get('is_custom', False) for s in all_streams)
+        # Filter out non-active accounts per Dispatcharr API spec
+        accounts = [acc for acc in accounts if acc.get('is_active', True)]
+        
+        # Check if there are any custom streams using efficient method
+        has_custom = has_custom_streams()
         
         # Filter out "custom" M3U account if there are no custom streams
-        if not has_custom_streams:
-            # Filter accounts by checking name or other identifiers
-            # Look for accounts named "custom" (case-insensitive) or with null/empty server_url
+        if not has_custom:
+            # Filter accounts by checking name only
+            # Only filter accounts named "custom" (case-insensitive)
+            # Do not filter based on null URLs as legitimate disabled/file-based accounts may have these
             accounts = [
                 acc for acc in accounts 
-                if not (acc.get('name', '').lower() == 'custom' or 
-                       (acc.get('server_url') is None and acc.get('file_path') is None))
+                if acc.get('name', '').lower() != 'custom'
             ]
         
         return jsonify(accounts)
@@ -953,6 +955,36 @@ def queue_all_channels():
         logging.error(f"Error queueing all channels: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stream-checker/global-action', methods=['POST'])
+def trigger_global_action():
+    """Trigger a manual global action (Update M3U, Match streams, Check all channels).
+    
+    This performs a complete global action that:
+    1. Reloads enabled M3U accounts
+    2. Matches new streams with regex patterns
+    3. Checks every channel, bypassing 2-hour immunity
+    """
+    try:
+        service = get_stream_checker_service()
+        
+        if not service.running:
+            return jsonify({"error": "Stream checker service is not running"}), 400
+        
+        success = service.trigger_global_action()
+        
+        if success:
+            return jsonify({
+                "message": "Global action triggered successfully",
+                "status": "in_progress",
+                "description": "Update, Match, and Check all channels in progress"
+            })
+        else:
+            return jsonify({"error": "Failed to trigger global action"}), 500
+    
+    except Exception as e:
+        logging.error(f"Error triggering global action: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Serve React app for all frontend routes (catch-all - must be last!)
 @app.route('/<path:path>')
 def serve_frontend(path):
@@ -979,15 +1011,35 @@ if __name__ == '__main__':
     
     logging.info(f"Starting StreamFlow for Dispatcharr Web API on {args.host}:{args.port}")
     
-    # Auto-start stream checker service if enabled
+    # Auto-start stream checker service if enabled and pipeline mode is not disabled
     try:
         service = get_stream_checker_service()
-        if service.config.get('enabled', True):
+        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        if pipeline_mode == 'disabled':
+            logging.info("Stream checker service is disabled via pipeline mode")
+        elif service.config.get('enabled', True):
             service.start()
-            logging.info("Stream checker service auto-started")
+            logging.info(f"Stream checker service auto-started (mode: {pipeline_mode})")
         else:
             logging.info("Stream checker service is disabled in configuration")
     except Exception as e:
         logging.error(f"Failed to auto-start stream checker service: {e}")
+    
+    # Auto-start automation service if pipeline mode is not disabled
+    # When any pipeline other than disabled is selected, automation should auto-start
+    try:
+        manager = get_automation_manager()
+        service = get_stream_checker_service()
+        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        if pipeline_mode == 'disabled':
+            logging.info("Automation service is disabled via pipeline mode")
+        else:
+            # Auto-start automation for any active pipeline
+            manager.start_automation()
+            logging.info(f"Automation service auto-started (mode: {pipeline_mode})")
+    except Exception as e:
+        logging.error(f"Failed to auto-start automation service: {e}")
     
     app.run(host=args.host, port=args.port, debug=args.debug)

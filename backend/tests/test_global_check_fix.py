@@ -16,7 +16,7 @@ import sys
 import os
 
 # Add backend to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from stream_checker_service import (
     StreamCheckerService,
@@ -41,13 +41,13 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def test_mark_global_check_called_after_queueing(self):
-        """Test that mark_global_check() is called after _queue_all_channels()."""
+        """Test that mark_global_check() is called after _perform_global_action()."""
         # Create service with test config
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method
-            service._queue_all_channels = Mock()
+            # Mock the _perform_global_action method
+            service._perform_global_action = Mock()
             
             # Set the scheduled time to current time
             now = datetime.now()
@@ -66,8 +66,8 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             # Call _check_global_schedule
             service._check_global_schedule()
             
-            # Verify _queue_all_channels was called
-            service._queue_all_channels.assert_called_once()
+            # Verify _perform_global_action was called
+            service._perform_global_action.assert_called_once()
             
             # Verify mark_global_check was called (last_global_check should be updated)
             last_check = service.update_tracker.get_last_global_check()
@@ -83,16 +83,15 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method to track calls
-            queue_all_calls = []
-            original_queue_all = service._queue_all_channels
+            # Mock the _perform_global_action method to track calls
+            global_action_calls = []
             
-            def mock_queue_all():
-                queue_all_calls.append(datetime.now())
-                # Don't actually queue, just mark
+            def mock_global_action():
+                global_action_calls.append(datetime.now())
+                # Mark that global check was performed
                 service.update_tracker.mark_global_check()
             
-            service._queue_all_channels = Mock(side_effect=mock_queue_all)
+            service._perform_global_action = Mock(side_effect=mock_global_action)
             
             # Set the scheduled time to current time
             now = datetime.now()
@@ -112,37 +111,38 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             for i in range(5):
                 service._check_global_schedule()
             
-            # Verify _queue_all_channels was called only ONCE
-            self.assertEqual(len(queue_all_calls), 1, 
-                           f"Expected 1 call to _queue_all_channels, got {len(queue_all_calls)}")
+            # Verify _perform_global_action was called only ONCE
+            self.assertEqual(len(global_action_calls), 1, 
+                           f"Expected 1 call to _perform_global_action, got {len(global_action_calls)}")
     
     def test_global_check_respects_daily_limit(self):
         """Test that global check only runs once per day."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock the _queue_all_channels method
-            service._queue_all_channels = Mock()
+            # Mock the _perform_global_action method
+            service._perform_global_action = Mock()
             
-            # Set the scheduled time to current time
+            # Set the scheduled time to earlier today
             now = datetime.now()
+            earlier_hour = max(0, now.hour - 2)  # 2 hours ago
             service.config.update({
                 'global_check_schedule': {
                     'enabled': True,
-                    'hour': now.hour,
-                    'minute': now.minute
+                    'hour': earlier_hour,
+                    'minute': 0
                 }
             })
             
-            # Set last global check to 12 hours ago (same day)
-            recent_timestamp = (now - timedelta(hours=12)).isoformat()
+            # Set last global check to earlier today (after scheduled time, same day)
+            recent_timestamp = now.replace(hour=earlier_hour + 1, minute=0).isoformat()
             service.update_tracker.updates['last_global_check'] = recent_timestamp
             
             # Call _check_global_schedule
             service._check_global_schedule()
             
-            # Verify _queue_all_channels was NOT called (too recent)
-            service._queue_all_channels.assert_not_called()
+            # Verify _queue_all_channels was NOT called (already ran today)
+            service._perform_global_action.assert_not_called()
     
     def test_tracker_mark_global_check_updates_timestamp(self):
         """Test that ChannelUpdateTracker.mark_global_check updates the timestamp."""
@@ -164,8 +164,8 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             time_diff = abs((before_time - last_check_time).total_seconds())
             self.assertLess(time_diff, 5, "Timestamp should be within 5 seconds of now")
     
-    def test_tracker_mark_global_check_clears_needs_check_flags(self):
-        """Test that mark_global_check clears all needs_check flags."""
+    def test_tracker_mark_global_check_preserves_needs_check_flags(self):
+        """Test that mark_global_check preserves needs_check flags (only updates timestamp)."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             tracker = ChannelUpdateTracker(self.tracker_file)
             
@@ -178,13 +178,13 @@ class TestGlobalCheckNoStacking(unittest.TestCase):
             channels_needing_check = tracker.get_channels_needing_check()
             self.assertEqual(len(channels_needing_check), 3)
             
-            # Mark global check
+            # Mark global check (this just updates the timestamp, doesn't clear flags)
             tracker.mark_global_check()
             
-            # Verify all needs_check flags are cleared
+            # Verify needs_check flags are preserved (channels queued but not yet checked)
             channels_needing_check = tracker.get_channels_needing_check()
-            self.assertEqual(len(channels_needing_check), 0, 
-                           "All needs_check flags should be cleared after global check")
+            self.assertEqual(len(channels_needing_check), 3, 
+                           "needs_check flags should be preserved after global check is initiated")
 
 
 if __name__ == '__main__':

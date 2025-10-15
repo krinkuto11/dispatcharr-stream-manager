@@ -26,7 +26,11 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  RadioGroup,
+  Radio,
+  FormControl,
+  FormLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -64,6 +68,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     global_check_interval_hours: 24,
     concurrent_stream_checks: 2,
     enabled_m3u_accounts: [],
+    autostart_automation: false,
     enabled_features: {
       auto_playlist_update: true,
       auto_stream_discovery: true,
@@ -76,8 +81,13 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
   const [streamCheckerConfig, setStreamCheckerConfig] = useState({
     global_check_schedule: {
       enabled: true,
+      frequency: 'daily',
       hour: 3,
-      minute: 0
+      minute: 0,
+      day_of_month: 1
+    },
+    queue: {
+      check_on_update: true
     }
   });
 
@@ -682,6 +692,33 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                       />
                       
                       <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
+                        Stream Checker Settings
+                      </Typography>
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={streamCheckerConfig.queue?.check_on_update !== false}
+                            onChange={(e) => {
+                              setStreamCheckerConfig(prev => ({
+                                ...prev,
+                                queue: {
+                                  ...prev.queue,
+                                  check_on_update: e.target.checked
+                                }
+                              }));
+                            }}
+                          />
+                        }
+                        label="Check Channels on M3U Update"
+                        sx={{ mb: 2 }}
+                      />
+                      
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                        When enabled, channels are automatically queued for quality checking when their M3U playlists are updated.
+                      </Typography>
+                      
+                      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
                         Global Check Schedule
                       </Typography>
                       
@@ -697,8 +734,44 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                       />
                       
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Configure the time when the daily global channel check runs (24-hour format).
+                        Configure when the global channel check runs to verify stream quality across all channels.
                       </Typography>
+                      
+                      <FormControl component="fieldset" sx={{ mb: 2 }}>
+                        <FormLabel component="legend">Frequency</FormLabel>
+                        <RadioGroup
+                          row
+                          value={streamCheckerConfig.global_check_schedule.frequency || 'daily'}
+                          onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.frequency', e.target.value)}
+                        >
+                          <FormControlLabel 
+                            value="daily" 
+                            control={<Radio />} 
+                            label="Daily" 
+                            disabled={!streamCheckerConfig.global_check_schedule.enabled}
+                          />
+                          <FormControlLabel 
+                            value="monthly" 
+                            control={<Radio />} 
+                            label="Monthly" 
+                            disabled={!streamCheckerConfig.global_check_schedule.enabled}
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                      
+                      {streamCheckerConfig.global_check_schedule.frequency === 'monthly' && (
+                        <TextField
+                          label="Day of Month"
+                          type="number"
+                          value={streamCheckerConfig.global_check_schedule.day_of_month || 1}
+                          onChange={(e) => handleStreamCheckerConfigChange('global_check_schedule.day_of_month', parseInt(e.target.value))}
+                          inputProps={{ min: 1, max: 31 }}
+                          disabled={!streamCheckerConfig.global_check_schedule.enabled}
+                          fullWidth
+                          margin="normal"
+                          helperText="Day of the month to run the check (1-31)"
+                        />
+                      )}
                       
                       <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <TextField
@@ -726,6 +799,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                       </Typography>
                       
                       <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={config.autostart_automation || false}
+                              onChange={(e) => handleConfigChange('autostart_automation', e.target.checked)}
+                            />
+                          }
+                          label="Start Automation Service on Startup"
+                        />
                         <FormControlLabel
                           control={
                             <Switch
@@ -783,9 +865,27 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                                   <Switch
                                     checked={selectedM3uAccounts.length === 0 || selectedM3uAccounts.includes(account.id)}
                                     onChange={(e) => {
-                                      const newSelected = e.target.checked
-                                        ? [...selectedM3uAccounts, account.id]
-                                        : selectedM3uAccounts.filter(id => id !== account.id);
+                                      let newSelected;
+                                      if (selectedM3uAccounts.length === 0) {
+                                        // All accounts currently enabled (empty array)
+                                        // User is unchecking one, so populate array with all OTHER account IDs
+                                        newSelected = m3uAccounts
+                                          .filter(acc => acc.id !== account.id)
+                                          .map(acc => acc.id);
+                                      } else {
+                                        // Some accounts selected
+                                        if (e.target.checked) {
+                                          // Adding an account
+                                          newSelected = [...selectedM3uAccounts, account.id];
+                                          // If all accounts are now selected, reset to empty array (meaning "all")
+                                          if (newSelected.length === m3uAccounts.length) {
+                                            newSelected = [];
+                                          }
+                                        } else {
+                                          // Removing an account
+                                          newSelected = selectedM3uAccounts.filter(id => id !== account.id);
+                                        }
+                                      }
                                       setSelectedM3uAccounts(newSelected);
                                       handleConfigChange('enabled_m3u_accounts', newSelected);
                                     }}

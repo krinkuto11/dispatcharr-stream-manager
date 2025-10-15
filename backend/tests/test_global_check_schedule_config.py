@@ -121,8 +121,8 @@ class TestGlobalCheckScheduleConfig(unittest.TestCase):
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock _queue_all_channels
-            service._queue_all_channels = Mock()
+            # Mock _perform_global_action
+            service._perform_global_action = Mock()
             
             # Set schedule to current time
             now = datetime.now()
@@ -141,15 +141,15 @@ class TestGlobalCheckScheduleConfig(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was called
-            service._queue_all_channels.assert_called_once()
+            service._perform_global_action.assert_called_once()
     
     def test_schedule_disabled_prevents_check(self):
         """Test that disabling schedule prevents automatic global check."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
-            # Mock _queue_all_channels
-            service._queue_all_channels = Mock()
+            # Mock _perform_global_action
+            service._perform_global_action = Mock()
             
             # Set schedule to current time but disabled
             now = datetime.now()
@@ -165,7 +165,7 @@ class TestGlobalCheckScheduleConfig(unittest.TestCase):
             service._check_global_schedule()
             
             # Verify queue was NOT called (disabled)
-            service._queue_all_channels.assert_not_called()
+            service._perform_global_action.assert_not_called()
     
     def test_get_status_includes_schedule_config(self):
         """Test that get_status includes global_check_schedule configuration."""

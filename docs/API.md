@@ -72,7 +72,16 @@ Content-Type: application/json
 
 {
   "enabled": true,
-  "check_interval": 300,
+  "global_check_schedule": {
+    "enabled": true,
+    "frequency": "daily",
+    "hour": 3,
+    "minute": 0
+  },
+  "queue": {
+    "check_on_update": true,
+    "max_channels_per_run": 50
+  },
   "scoring": {
     "weights": {
       "bitrate": 0.30,
@@ -85,6 +94,16 @@ Content-Type: application/json
 }
 ```
 Updates stream checker configuration.
+
+**Configuration Options:**
+- `enabled` - Enable/disable the stream checker service
+- `global_check_schedule.enabled` - Enable scheduled global checks of all channels
+- `global_check_schedule.frequency` - Schedule frequency ('daily' or 'monthly')
+- `global_check_schedule.hour` - Hour to run check (0-23)
+- `global_check_schedule.minute` - Minute to run check (0-59)
+- `queue.check_on_update` - Automatically queue channels for checking when M3U playlists are updated
+- `queue.max_channels_per_run` - Maximum number of channels to check per run
+- `scoring.weights` - Weights for different quality factors in stream scoring
 
 ### Get Progress
 ```
@@ -146,14 +165,25 @@ PUT /api/automation/config
 Content-Type: application/json
 
 {
-  "check_interval": 300,
+  "playlist_update_interval_minutes": 5,
+  "autostart_automation": false,
+  "enabled_m3u_accounts": [],
   "enabled_features": {
-    "playlist_refresh": true,
-    "stream_discovery": true
+    "auto_playlist_update": true,
+    "auto_stream_discovery": true,
+    "changelog_tracking": true
   }
 }
 ```
 Updates automation configuration.
+
+**Configuration Options:**
+- `playlist_update_interval_minutes` - How often to check for playlist updates
+- `autostart_automation` - Whether to automatically start the automation service on server startup
+- `enabled_m3u_accounts` - Array of M3U account IDs to enable (empty array means all accounts)
+- `enabled_features.auto_playlist_update` - Enable automatic playlist updates
+- `enabled_features.auto_stream_discovery` - Enable automatic stream discovery via regex
+- `enabled_features.changelog_tracking` - Track changes in the changelog
 
 ### Discover Streams
 ```

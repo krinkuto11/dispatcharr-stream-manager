@@ -77,6 +77,7 @@ export const streamCheckerAPI = {
   checkChannel: (channelId) => api.post('/stream-checker/check-channel', { channel_id: channelId }),
   markUpdated: (data) => api.post('/stream-checker/mark-updated', data),
   queueAllChannels: () => api.post('/stream-checker/queue-all'),
+  triggerGlobalAction: () => api.post('/stream-checker/global-action'),
 };
 
 export const changelogAPI = {

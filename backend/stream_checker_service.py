@@ -86,10 +86,13 @@ class StreamCheckConfig:
     DEFAULT_CONFIG = {
         'enabled': True,
         'check_interval': 300,  # DEPRECATED - checks now only triggered by M3U refresh
+        'pipeline_mode': 'pipeline_1_5',  # Pipeline mode: 'disabled', 'pipeline_1', 'pipeline_1_5', 'pipeline_2', 'pipeline_2_5', 'pipeline_3'
         'global_check_schedule': {
             'enabled': True,
+            'frequency': 'daily',  # 'daily' or 'monthly'
             'hour': 3,  # 3 AM for off-peak checking
-            'minute': 0
+            'minute': 0,
+            'day_of_month': 1  # Day of month for monthly checks (1-31)
         },
         'stream_analysis': {
             'ffmpeg_duration': 30,  # seconds to analyze each stream
@@ -141,12 +144,13 @@ class StreamCheckConfig:
         Returns:
             Dict[str, Any]: The configuration dictionary.
         """
+        import copy
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     loaded = json.load(f)
-                    # Merge with defaults to ensure all keys exist
-                    config = self.DEFAULT_CONFIG.copy()
+                    # Deep copy defaults to avoid mutating DEFAULT_CONFIG
+                    config = copy.deepcopy(self.DEFAULT_CONFIG)
                     config.update(loaded)
                     return config
             except (json.JSONDecodeError, FileNotFoundError) as e:
@@ -155,9 +159,9 @@ class StreamCheckConfig:
                     f"{self.config_file}: {e}, using defaults"
                 )
         
-        # Create default config
-        self._save_config(self.DEFAULT_CONFIG)
-        return self.DEFAULT_CONFIG.copy()
+        # Create default config - use deep copy to avoid mutation
+        self._save_config(copy.deepcopy(self.DEFAULT_CONFIG))
+        return copy.deepcopy(self.DEFAULT_CONFIG)
     
     def _save_config(
         self, config: Optional[Dict[str, Any]] = None
@@ -438,17 +442,62 @@ class ChannelUpdateTracker:
                 return self.updates['channels'][channel_key].get('checked_stream_ids', [])
             return []
     
+    def mark_channel_for_force_check(self, channel_id: int):
+        """Mark a channel for force checking (bypasses 2-hour immunity).
+        
+        Args:
+            channel_id: The channel ID to mark for force check
+        """
+        with self.lock:
+            if 'channels' not in self.updates:
+                self.updates['channels'] = {}
+            
+            channel_key = str(channel_id)
+            if channel_key not in self.updates['channels']:
+                self.updates['channels'][channel_key] = {}
+            
+            self.updates['channels'][channel_key]['force_check'] = True
+            self._save_updates()
+    
+    def should_force_check(self, channel_id: int) -> bool:
+        """Check if a channel should be force checked (bypassing immunity).
+        
+        Args:
+            channel_id: The channel ID to check
+            
+        Returns:
+            True if force check is enabled for this channel
+        """
+        with self.lock:
+            channel_key = str(channel_id)
+            if channel_key in self.updates.get('channels', {}):
+                return self.updates['channels'][channel_key].get('force_check', False)
+            return False
+    
+    def clear_force_check(self, channel_id: int):
+        """Clear the force check flag for a channel.
+        
+        Args:
+            channel_id: The channel ID to clear force check for
+        """
+        with self.lock:
+            channel_key = str(channel_id)
+            if channel_key in self.updates.get('channels', {}):
+                self.updates['channels'][channel_key]['force_check'] = False
+                self._save_updates()
+    
     def mark_global_check(self, timestamp: str = None):
-        """Mark that a global check was performed."""
+        """Mark that a global check was initiated.
+        
+        This only updates the timestamp to prevent duplicate global checks.
+        It does NOT clear needs_check flags - those should only be cleared
+        when channels are actually checked via mark_channel_checked().
+        """
         if timestamp is None:
             timestamp = datetime.now().isoformat()
         
         with self.lock:
             self.updates['last_global_check'] = timestamp
-            # Mark all channels as checked
-            for channel_id in self.updates.get('channels', {}).keys():
-                self.updates['channels'][channel_id]['needs_check'] = False
-                self.updates['channels'][channel_id]['last_check'] = timestamp
             self._save_updates()
     
     def get_last_global_check(self) -> Optional[str]:
@@ -766,7 +815,21 @@ class StreamCheckerService:
         logging.info("Stream checker scheduler stopped")
     
     def _queue_updated_channels(self):
-        """Queue channels that have received M3U updates."""
+        """Queue channels that have received M3U updates.
+        
+        This respects the pipeline mode:
+        - Disabled: Skip all automation
+        - Pipeline 1/1.5: Queue channels for checking
+        - Pipeline 2/2.5: Skip checking (only update and match)
+        - Pipeline 3: Skip checking (only scheduled global actions)
+        """
+        pipeline_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        # Disabled and Pipelines 2, 2.5, and 3 don't check on update
+        if pipeline_mode in ['disabled', 'pipeline_2', 'pipeline_2_5', 'pipeline_3']:
+            logging.debug(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
+            return
+        
         max_channels = self.config.get('queue.max_channels_per_run', 50)
         
         # Atomically get channels and clear their needs_check flag
@@ -780,33 +843,141 @@ class StreamCheckerService:
                 self.check_queue.remove_from_completed(channel_id)
             
             self.check_queue.add_channels(channels_to_queue, priority=10)
+            logging.info(f"Queued {len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
     
     def _check_global_schedule(self):
-        """Check if it's time for a scheduled global check."""
+        """Check if it's time for a scheduled global action.
+        
+        On fresh start (no previous check recorded):
+        - Only runs if current time is within ±10 minutes of scheduled time
+        - Otherwise waits for the scheduled time to arrive
+        
+        On subsequent checks (previous check exists):
+        - Runs once per day/month after scheduled time has passed
+        - Prevents duplicate runs on the same day
+        """
         if not self.config.get('global_check_schedule.enabled', True):
+            return
+        
+        # Get pipeline mode
+        pipeline_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
+        
+        # Only pipelines with .5 suffix and pipeline_3 have scheduled global actions
+        # Disabled mode skips all automation
+        if pipeline_mode not in ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3']:
             return
         
         now = datetime.now()
         scheduled_hour = self.config.get('global_check_schedule.hour', 3)
         scheduled_minute = self.config.get('global_check_schedule.minute', 0)
+        frequency = self.config.get('global_check_schedule.frequency', 'daily')
         
-        # Check if we're in the scheduled time window (within 5 minutes)
-        if now.hour == scheduled_hour and abs(now.minute - scheduled_minute) <= 5:
-            last_global = self.update_tracker.get_last_global_check()
-            if last_global:
+        last_global = self.update_tracker.get_last_global_check()
+        
+        # Calculate scheduled time for today
+        scheduled_time_today = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
+        
+        # On fresh start (no previous check), only run if within the scheduled time window (±10 minutes)
+        # Otherwise, do nothing and wait for the scheduled time to arrive
+        if last_global is None:
+            time_diff_minutes = abs((now - scheduled_time_today).total_seconds() / 60)
+            if time_diff_minutes <= 10:
+                # We're within the scheduled window on fresh start, run the check
+                logging.info(f"Starting scheduled {frequency} global action (mode: {pipeline_mode})")
+                self._perform_global_action()
+                self.update_tracker.mark_global_check()
+            else:
+                # Fresh start but not within scheduled window, do nothing and wait
+                # The scheduler will check again later when the scheduled time arrives
+                logging.debug(f"Fresh start outside scheduled window (±10 min of {scheduled_hour:02d}:{scheduled_minute:02d}), waiting for scheduled time")
+            return
+        
+        # Determine if we should run based on frequency and last check time
+        should_run = False
+        
+        if frequency == 'monthly':
+            scheduled_day = self.config.get('global_check_schedule.day_of_month', 1)
+            # Check if it's the correct day of the month
+            if now.day == scheduled_day:
                 last_check_time = datetime.fromisoformat(last_global)
-                # Only do global check once per day
-                if (now - last_check_time).days < 1:
-                    return
-            
-            # Queue all channels for global check
-            logging.info("Starting scheduled global channel check")
-            self._queue_all_channels()
-            # Mark that global check has been initiated to prevent duplicate queueing
-            self.update_tracker.mark_global_check()
+                # Check if last run was in a different month or more than 30 days ago
+                if last_check_time.month != now.month or last_check_time.year != now.year or (now - last_check_time).days >= 30:
+                    should_run = True
+        else:  # daily
+            last_check_time = datetime.fromisoformat(last_global)
+            # Check if last run was on a different day (not today)
+            if last_check_time.date() != now.date():
+                should_run = True
+        
+        # Only run if we're past the scheduled time today and haven't run yet
+        if should_run:
+            # Run if current time is past scheduled time
+            if now >= scheduled_time_today:
+                # Perform global action based on pipeline mode
+                logging.info(f"Starting scheduled {frequency} global action (mode: {pipeline_mode})")
+                self._perform_global_action()
+                # Mark that global check has been initiated to prevent duplicate queueing
+                self.update_tracker.mark_global_check()
     
-    def _queue_all_channels(self):
-        """Queue all channels for checking (global check)."""
+    def _perform_global_action(self):
+        """Perform a complete global action: Update M3U, Match streams, and Check all channels.
+        
+        This is the comprehensive global action that:
+        1. Reloads enabled M3U accounts
+        2. Matches new streams with regex patterns
+        3. Checks every channel from every stream (bypassing 2-hour immunity)
+        """
+        try:
+            logging.info("=" * 80)
+            logging.info("STARTING GLOBAL ACTION")
+            logging.info("=" * 80)
+            
+            automation_manager = None
+            
+            # Step 1: Update M3U playlists
+            logging.info("Step 1/3: Updating M3U playlists...")
+            try:
+                from automated_stream_manager import AutomatedStreamManager
+                automation_manager = AutomatedStreamManager()
+                update_success = automation_manager.refresh_playlists()
+                if update_success:
+                    logging.info("✓ M3U playlists updated successfully")
+                else:
+                    logging.warning("⚠ M3U playlist update had issues")
+            except Exception as e:
+                logging.error(f"✗ Failed to update M3U playlists: {e}")
+            
+            # Step 2: Match and assign streams
+            logging.info("Step 2/3: Matching and assigning streams...")
+            try:
+                if automation_manager is not None:
+                    assignments = automation_manager.discover_and_assign_streams()
+                    if assignments:
+                        logging.info(f"✓ Assigned streams to {len(assignments)} channels")
+                    else:
+                        logging.info("✓ No new stream assignments")
+                else:
+                    logging.warning("⚠ Skipping stream matching - automation manager not available")
+            except Exception as e:
+                logging.error(f"✗ Failed to match streams: {e}")
+            
+            # Step 3: Check all channels (force check to bypass immunity)
+            logging.info("Step 3/3: Queueing all channels for checking...")
+            self._queue_all_channels(force_check=True)
+            
+            logging.info("=" * 80)
+            logging.info("GLOBAL ACTION INITIATED SUCCESSFULLY")
+            logging.info("=" * 80)
+            
+        except Exception as e:
+            logging.error(f"Error performing global action: {e}", exc_info=True)
+    
+    def _queue_all_channels(self, force_check: bool = False):
+        """Queue all channels for checking (global check).
+        
+        Args:
+            force_check: If True, marks channels for force checking which bypasses 2-hour immunity
+        """
         try:
             base_url = _get_base_url()
             channels_data = fetch_data_from_url(f"{base_url}/api/channels/channels/")
@@ -818,14 +989,20 @@ class StreamCheckerService:
                     channels = channels_data
                 
                 channel_ids = [ch['id'] for ch in channels if isinstance(ch, dict) and 'id' in ch]
+                
+                if force_check:
+                    # Mark all channels for force check (bypasses immunity)
+                    for channel_id in channel_ids:
+                        self.update_tracker.mark_channel_for_force_check(channel_id)
+                
                 max_channels = self.config.get('queue.max_channels_per_run', 50)
                 
-                # Queue in batches
+                # Queue in batches with higher priority for global checks
                 for i in range(0, len(channel_ids), max_channels):
                     batch = channel_ids[i:i+max_channels]
                     self.check_queue.add_channels(batch, priority=5)
                 
-                logging.info(f"Queued {len(channel_ids)} channels for global check")
+                logging.info(f"Queued {len(channel_ids)} channels for global check (force_check={force_check})")
         except Exception as e:
             logging.error(f"Failed to queue all channels: {e}")
     
@@ -934,18 +1111,29 @@ class StreamCheckerService:
             
             logging.info(f"Found {len(streams)} streams for channel {channel_name}")
             
+            # Check if this is a force check (bypasses 2-hour immunity)
+            force_check = self.update_tracker.should_force_check(channel_id)
+            
             # Get list of already checked streams to avoid re-analyzing
             checked_stream_ids = self.update_tracker.get_checked_stream_ids(channel_id)
             current_stream_ids = [s['id'] for s in streams]
             
             # Identify which streams need analysis (new or unchecked)
-            streams_to_check = [s for s in streams if s['id'] not in checked_stream_ids]
-            streams_already_checked = [s for s in streams if s['id'] in checked_stream_ids]
-            
-            if streams_to_check:
-                logging.info(f"Found {len(streams_to_check)} new/unchecked streams (out of {len(streams)} total)")
+            # If force_check is True, check ALL streams regardless of immunity
+            if force_check:
+                streams_to_check = streams
+                streams_already_checked = []
+                logging.info(f"Force check enabled: analyzing all {len(streams)} streams (bypassing 2-hour immunity)")
+                # Clear the force check flag after acknowledging it
+                self.update_tracker.clear_force_check(channel_id)
             else:
-                logging.info(f"All {len(streams)} streams have been recently checked, using cached scores")
+                streams_to_check = [s for s in streams if s['id'] not in checked_stream_ids]
+                streams_already_checked = [s for s in streams if s['id'] in checked_stream_ids]
+                
+                if streams_to_check:
+                    logging.info(f"Found {len(streams_to_check)} new/unchecked streams (out of {len(streams)} total)")
+                else:
+                    logging.info(f"All {len(streams)} streams have been recently checked, using cached scores")
             
             # Import stream analysis functions from dispatcharr-stream-sorter
             # Note: The file has a dash in the name, so we need to import it specially
@@ -1325,6 +1513,25 @@ class StreamCheckerService:
         if 'queue' in updates and 'max_size' in updates['queue']:
             # Can't resize existing queue, but will apply on next restart
             logging.info("Queue max size updated, will apply on next restart")
+    
+    def trigger_global_action(self):
+        """Manually trigger a global action (Update, Match, Check all channels).
+        
+        This can be called at any time to perform a complete global action,
+        regardless of the scheduled time.
+        """
+        if not self.running:
+            logging.warning("Cannot trigger global action - service is not running")
+            return False
+        
+        logging.info("Manual global action triggered")
+        try:
+            self._perform_global_action()
+            self.update_tracker.mark_global_check()
+            return True
+        except Exception as e:
+            logging.error(f"Failed to trigger global action: {e}")
+            return False
 
 
 # Global service instance
