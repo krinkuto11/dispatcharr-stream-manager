@@ -803,10 +803,13 @@ class StreamCheckerService:
                 # Wait for either a trigger event or timeout (60 seconds for global check monitoring)
                 triggered = self.check_trigger.wait(timeout=60)
                 
+                # Handle trigger for M3U updates
                 if triggered:
-                    # Event was triggered, clear it and check for updated channels
                     self.check_trigger.clear()
-                    if self.config.get('queue.check_on_update', True):
+                    # Only process channel queueing if this was a real M3U update trigger
+                    # (not a config change wake-up)
+                    if not self.config_changed.is_set():
+                        # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
                         self._queue_updated_channels()
                 
                 # Check if config was changed
@@ -835,7 +838,7 @@ class StreamCheckerService:
         
         # Disabled and Pipelines 2, 2.5, and 3 don't check on update
         if pipeline_mode in ['disabled', 'pipeline_2', 'pipeline_2_5', 'pipeline_3']:
-            logging.debug(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
+            logging.info(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
             return
         
         max_channels = self.config.get('queue.max_channels_per_run', 50)
@@ -852,6 +855,8 @@ class StreamCheckerService:
             
             added = self.check_queue.add_channels(channels_to_queue, priority=10)
             logging.info(f"Queued {added}/{len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
+        else:
+            logging.debug(f"No channels need checking (mode: {pipeline_mode})")
     
     def _check_global_schedule(self):
         """Check if it's time for a scheduled global action.
@@ -865,6 +870,7 @@ class StreamCheckerService:
         - Prevents duplicate runs on the same day
         """
         if not self.config.get('global_check_schedule.enabled', True):
+            logging.debug("Global check schedule is disabled")
             return
         
         # Get pipeline mode
@@ -873,6 +879,7 @@ class StreamCheckerService:
         # Only pipelines with .5 suffix and pipeline_3 have scheduled global actions
         # Disabled mode skips all automation
         if pipeline_mode not in ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3']:
+            logging.debug(f"Skipping global schedule check - {pipeline_mode} mode does not have scheduled global actions")
             return
         
         now = datetime.now()
@@ -1565,6 +1572,9 @@ class StreamCheckerService:
         # Signal that config has changed for immediate application
         if self.running:
             self.config_changed.set()
+            # Wake up the scheduler immediately by setting the trigger
+            # The scheduler will check config_changed and skip channel queueing
+            self.check_trigger.set()
             logging.info("Configuration changes will be applied immediately")
         
         # Reload queue max size if changed
