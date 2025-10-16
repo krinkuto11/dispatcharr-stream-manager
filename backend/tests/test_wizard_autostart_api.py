@@ -164,6 +164,44 @@ class TestWizardAutostartAPI(unittest.TestCase):
                     
                     self.assertFalse(service.running, "Stream checker service should not be running")
                     self.assertFalse(manager.running, "Automation service should not be running")
+    
+    def test_endpoint_stops_services_when_switching_to_disabled(self):
+        """Test that API endpoint stops services when switching to disabled pipeline."""
+        with patch('web_api.CONFIG_DIR', Path(self.temp_dir)):
+            with patch('automated_stream_manager.CONFIG_DIR', Path(self.temp_dir)):
+                with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
+                    # Setup complete wizard configuration
+                    self._create_complete_wizard_config()
+                    
+                    # First, start services with an active pipeline
+                    response = self.app.put(
+                        '/api/stream-checker/config',
+                        data=json.dumps({
+                            'pipeline_mode': 'pipeline_1_5'
+                        }),
+                        content_type='application/json'
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    
+                    # Verify services are running
+                    service = get_stream_checker_service()
+                    manager = get_automation_manager()
+                    self.assertTrue(service.running, "Stream checker service should be running")
+                    self.assertTrue(manager.running, "Automation service should be running")
+                    
+                    # Now switch to disabled pipeline
+                    response = self.app.put(
+                        '/api/stream-checker/config',
+                        data=json.dumps({
+                            'pipeline_mode': 'disabled'
+                        }),
+                        content_type='application/json'
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    
+                    # Verify services have been stopped
+                    self.assertFalse(service.running, "Stream checker service should be stopped")
+                    self.assertFalse(manager.running, "Automation service should be stopped")
 
 
 if __name__ == '__main__':
