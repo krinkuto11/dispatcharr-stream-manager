@@ -842,8 +842,8 @@ class StreamCheckerService:
             for channel_id in channels_to_queue:
                 self.check_queue.remove_from_completed(channel_id)
             
-            self.check_queue.add_channels(channels_to_queue, priority=10)
-            logging.info(f"Queued {len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
+            added = self.check_queue.add_channels(channels_to_queue, priority=10)
+            logging.info(f"Queued {added}/{len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
     
     def _check_global_schedule(self):
         """Check if it's time for a scheduled global action.
@@ -995,14 +995,21 @@ class StreamCheckerService:
                     for channel_id in channel_ids:
                         self.update_tracker.mark_channel_for_force_check(channel_id)
                 
+                # Remove channels from completed set to allow re-queueing
+                # This is necessary for global checks to re-check all channels
+                for channel_id in channel_ids:
+                    self.check_queue.remove_from_completed(channel_id)
+                
                 max_channels = self.config.get('queue.max_channels_per_run', 50)
                 
                 # Queue in batches with higher priority for global checks
+                total_added = 0
                 for i in range(0, len(channel_ids), max_channels):
                     batch = channel_ids[i:i+max_channels]
-                    self.check_queue.add_channels(batch, priority=5)
+                    added = self.check_queue.add_channels(batch, priority=5)
+                    total_added += added
                 
-                logging.info(f"Queued {len(channel_ids)} channels for global check (force_check={force_check})")
+                logging.info(f"Queued {total_added}/{len(channel_ids)} channels for global check (force_check={force_check})")
         except Exception as e:
             logging.error(f"Failed to queue all channels: {e}")
     
