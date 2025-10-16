@@ -932,6 +932,22 @@ def update_stream_checker_config():
         
         service = get_stream_checker_service()
         service.update_config(data)
+        
+        # Auto-start services if wizard is complete and pipeline is not disabled
+        if 'pipeline_mode' in data and check_wizard_complete():
+            pipeline_mode = data['pipeline_mode']
+            
+            # Start stream checker service if not disabled
+            if pipeline_mode != 'disabled' and not service.running:
+                service.start()
+                logging.info(f"Stream checker service auto-started after config update (mode: {pipeline_mode})")
+            
+            # Start automation service if not disabled
+            manager = get_automation_manager()
+            if pipeline_mode != 'disabled' and not manager.running:
+                manager.start_automation()
+                logging.info(f"Automation service auto-started after config update (mode: {pipeline_mode})")
+        
         return jsonify({"message": "Configuration updated successfully", "config": service.config.config})
     except Exception as e:
         logging.error(f"Error updating stream checker config: {e}")
