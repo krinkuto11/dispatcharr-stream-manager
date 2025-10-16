@@ -803,11 +803,14 @@ class StreamCheckerService:
                 # Wait for either a trigger event or timeout (60 seconds for global check monitoring)
                 triggered = self.check_trigger.wait(timeout=60)
                 
+                # Handle trigger for M3U updates
                 if triggered:
-                    # Event was triggered, clear it and check for updated channels
                     self.check_trigger.clear()
-                    # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
-                    self._queue_updated_channels()
+                    # Only process channel queueing if this was a real M3U update trigger
+                    # (not a config change wake-up)
+                    if not self.config_changed.is_set():
+                        # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
+                        self._queue_updated_channels()
                 
                 # Check if config was changed
                 if self.config_changed.is_set():
@@ -1569,6 +1572,9 @@ class StreamCheckerService:
         # Signal that config has changed for immediate application
         if self.running:
             self.config_changed.set()
+            # Wake up the scheduler immediately by setting the trigger
+            # The scheduler will check config_changed and skip channel queueing
+            self.check_trigger.set()
             logging.info("Configuration changes will be applied immediately")
         
         # Reload queue max size if changed
