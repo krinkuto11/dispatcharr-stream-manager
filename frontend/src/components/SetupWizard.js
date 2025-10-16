@@ -395,6 +395,71 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     }
   };
 
+  const handleImportJSON = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      setError('');
+
+      // Read the file
+      const text = await file.text();
+      let jsonData;
+      
+      try {
+        jsonData = JSON.parse(text);
+      } catch (parseError) {
+        setError('Invalid JSON file: ' + parseError.message);
+        return;
+      }
+
+      // Validate JSON structure
+      if (!jsonData.patterns) {
+        setError('Invalid JSON structure: missing "patterns" field');
+        return;
+      }
+
+      // Import the patterns
+      await regexAPI.importPatterns(jsonData);
+      
+      // Reload patterns to show the imported data
+      await loadChannelsAndPatterns();
+      
+      // Show success message
+      setError('');
+      alert(`Successfully imported ${Object.keys(jsonData.patterns).length} patterns`);
+    } catch (err) {
+      console.error('Failed to import patterns:', err);
+      setError('Failed to import patterns: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+      // Clear the file input
+      event.target.value = '';
+    }
+  };
+
+  const handleExportJSON = () => {
+    try {
+      // Create a JSON blob from the patterns
+      const dataStr = JSON.stringify(patterns, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      // Create a download link and trigger it
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `channel_regex_config_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export patterns:', err);
+      setError('Failed to export patterns: ' + err.message);
+    }
+  };
+
   const handleDispatcharrConfigChange = (field, value) => {
     setDispatcharrConfig(prev => ({
       ...prev,
@@ -581,13 +646,33 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                         Configure regex patterns to automatically assign new streams to channels based on stream names.
                       </Typography>
                       
-                      <Box sx={{ mb: 2 }}>
+                      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                         <Button
                           variant="outlined"
                           onClick={loadChannelsAndPatterns}
                           disabled={loading}
                         >
                           {loading ? <CircularProgress size={20} /> : 'Load Channels'}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          component="label"
+                          disabled={loading}
+                        >
+                          Import Patterns from JSON
+                          <input
+                            type="file"
+                            accept="application/json,.json"
+                            hidden
+                            onChange={handleImportJSON}
+                          />
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          onClick={handleExportJSON}
+                          disabled={loading || !patterns.patterns || Object.keys(patterns.patterns).length === 0}
+                        >
+                          Export Patterns to JSON
                         </Button>
                       </Box>
 

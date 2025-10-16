@@ -53,6 +53,7 @@ export const regexAPI = {
   deletePattern: (channelId) => api.delete(`/regex-patterns/${channelId}`),
   testPattern: (data) => api.post('/test-regex', data),
   testPatternLive: (data) => api.post('/test-regex-live', data),
+  importPatterns: (patterns) => api.post('/regex-patterns/import', patterns),
 };
 
 export const streamAPI = {
