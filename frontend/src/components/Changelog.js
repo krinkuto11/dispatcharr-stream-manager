@@ -202,14 +202,21 @@ function Changelog() {
           </Typography>
         </Stack>
         <List dense sx={{ pl: 2 }}>
-          {streams.slice(0, 10).map((stream, idx) => (
-            <ListItem key={idx} sx={{ py: 0.25 }}>
-              <ListItemText 
-                primary={stream.stream_name || stream}
-                primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
-              />
-            </ListItem>
-          ))}
+          {streams.slice(0, 10).map((stream, idx) => {
+            // Handle both {stream_name, stream_id} and {name, id} formats
+            const streamName = typeof stream === 'string' 
+              ? stream 
+              : (stream.stream_name || stream.name || `Stream ${stream.stream_id || stream.id || 'unknown'}`);
+            
+            return (
+              <ListItem key={idx} sx={{ py: 0.25 }}>
+                <ListItemText 
+                  primary={streamName}
+                  primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
+                />
+              </ListItem>
+            );
+          })}
           {streams.length > 10 && (
             <ListItem sx={{ py: 0.25 }}>
               <ListItemText 
