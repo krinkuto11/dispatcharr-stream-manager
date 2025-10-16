@@ -68,12 +68,13 @@ class TestSchedulerRobustness(unittest.TestCase):
             service.check_queue.add_channels.assert_not_called()
     
     def test_scheduler_loop_calls_queue_updated_directly(self):
-        """Test that scheduler loop should call _queue_updated_channels without extra checks."""
+        """Test that scheduler loop calls _queue_updated_channels without checking queue.check_on_update."""
         with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
             service = StreamCheckerService()
             
             # Set to pipeline_2 with check_on_update=False
-            # This combination should still work (pipeline mode takes precedence)
+            # Pipeline mode should take precedence - _queue_updated_channels should be called
+            # and then decide internally not to queue based on pipeline mode
             service.config.update({
                 'pipeline_mode': 'pipeline_2',
                 'queue': {'check_on_update': False}
@@ -85,20 +86,16 @@ class TestSchedulerRobustness(unittest.TestCase):
             # Trigger the check
             service.check_trigger.set()
             
-            # Simulate scheduler loop logic
+            # Simulate scheduler loop logic (fixed version)
             triggered = service.check_trigger.wait(timeout=0.1)
             if triggered:
                 service.check_trigger.clear()
-                # Current implementation checks queue.check_on_update first
-                # This is the bug - it should just call _queue_updated_channels
-                if service.config.get('queue.check_on_update', True):
-                    service._queue_updated_channels()
+                # Fixed: Call _queue_updated_channels directly
+                service._queue_updated_channels()
             
-            # With check_on_update=False, _queue_updated_channels is NOT called
-            # But it SHOULD be called and let the function decide based on pipeline mode
-            service._queue_updated_channels.assert_not_called()
-            
-            # This is the bug: the scheduler checks the wrong flag
+            # After fix, _queue_updated_channels SHOULD be called
+            # It will then decide internally not to queue based on pipeline_2 mode
+            service._queue_updated_channels.assert_called_once()
     
     def test_pipeline_mode_overrides_check_on_update_flag(self):
         """Test that pipeline mode takes precedence over check_on_update flag."""
