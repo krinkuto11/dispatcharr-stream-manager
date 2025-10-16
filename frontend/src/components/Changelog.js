@@ -38,6 +38,7 @@ function Changelog() {
   const [error, setError] = useState('');
   const [days, setDays] = useState(7);
   const [channelLogos, setChannelLogos] = useState({});
+  const [expandedEntries, setExpandedEntries] = useState({});
 
   // Load cached logos from localStorage
   const loadCachedLogos = useCallback(() => {
@@ -272,8 +273,6 @@ function Changelog() {
     );
   };
 
-  const [expandedEntries, setExpandedEntries] = React.useState({});
-  
   const toggleExpandEntry = (entryIndex) => {
     setExpandedEntries(prev => ({
       ...prev,
