@@ -140,6 +140,48 @@ class TestQueueLoggingAccuracy(unittest.TestCase):
                 # Should show 4/5 (skipped channel 3 which was already queued)
                 self.assertIn('Queued 4/5', queue_log,
                             "Should track total across all batches and show 4 added out of 5")
+    
+    def test_queue_all_channels_removes_from_completed_set(self):
+        """Test that _queue_all_channels removes channels from completed set before queueing."""
+        with patch('stream_checker_service.CONFIG_DIR', Path(self.temp_dir)):
+            service = StreamCheckerService()
+            
+            # Mock 3 channels
+            mock_channels = [
+                {'id': i, 'name': f'Channel {i}'} for i in range(1, 4)
+            ]
+            
+            with patch('stream_checker_service.fetch_data_from_url', return_value=mock_channels):
+                # Simulate channels being completed (fully processed through the queue)
+                for ch_id in [1, 2, 3]:
+                    # Add to queue
+                    service.check_queue.add_channel(ch_id, priority=5)
+                    # Get from queue (moves to in_progress)
+                    service.check_queue.get_next_channel()
+                    # Mark as completed
+                    service.check_queue.mark_completed(ch_id)
+                
+                # Verify they're in completed set
+                self.assertIn(1, service.check_queue.completed)
+                self.assertIn(2, service.check_queue.completed)
+                self.assertIn(3, service.check_queue.completed)
+                
+                # Capture log output
+                with self.assertLogs(level='INFO') as log_context:
+                    service._queue_all_channels(force_check=True)
+                
+                # Find the summary log
+                queue_log = None
+                for log_msg in reversed(log_context.output):
+                    if 'Queued' in log_msg and 'channels for global check' in log_msg:
+                        queue_log = log_msg
+                        break
+                
+                self.assertIsNotNone(queue_log, "Should have a summary log about queueing channels")
+                
+                # Should show 3/3 (all channels should be queued after removing from completed set)
+                self.assertIn('Queued 3/3', queue_log,
+                            "Should queue all 3 channels after removing them from completed set")
 
 
 if __name__ == '__main__':

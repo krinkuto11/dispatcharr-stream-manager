@@ -995,6 +995,11 @@ class StreamCheckerService:
                     for channel_id in channel_ids:
                         self.update_tracker.mark_channel_for_force_check(channel_id)
                 
+                # Remove channels from completed set to allow re-queueing
+                # This is necessary for global checks to re-check all channels
+                for channel_id in channel_ids:
+                    self.check_queue.remove_from_completed(channel_id)
+                
                 max_channels = self.config.get('queue.max_channels_per_run', 50)
                 
                 # Queue in batches with higher priority for global checks
