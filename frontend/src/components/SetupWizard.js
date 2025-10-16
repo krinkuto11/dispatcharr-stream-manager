@@ -142,6 +142,23 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
     loadDispatcharrConfig();
   }, [initialSetupStatus]);
 
+  // Update enabled features based on pipeline mode
+  useEffect(() => {
+    const pipelineMode = streamCheckerConfig.pipeline_mode;
+    const hasAutoUpdates = ['pipeline_1', 'pipeline_1_5', 'pipeline_2', 'pipeline_2_5'].includes(pipelineMode);
+    const hasAutoChecking = ['pipeline_1', 'pipeline_1_5'].includes(pipelineMode);
+    
+    setConfig(prev => ({
+      ...prev,
+      enabled_features: {
+        auto_playlist_update: hasAutoUpdates,
+        auto_stream_discovery: hasAutoUpdates,
+        auto_quality_reordering: hasAutoChecking,
+        changelog_tracking: true
+      }
+    }));
+  }, [streamCheckerConfig.pipeline_mode]);
+
   const loadDispatcharrConfig = async () => {
     try {
       const response = await dispatcharrAPI.getConfig();
@@ -797,9 +814,14 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                               label={
                                 <Box>
                                   <Typography variant="subtitle1" fontWeight="bold">Pipeline 1: Update → Match → Check (with 2hr immunity)</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Automatic M3U updates, stream matching, and quality checking with 2-hour immunity.
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    Features:
                                   </Typography>
+                                  <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                                    <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Quality checking with 2-hour immunity</Typography></li>
+                                  </Box>
                                 </Box>
                               }
                               sx={{ alignItems: 'flex-start', m: 0 }}
@@ -813,9 +835,15 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                               label={
                                 <Box>
                                   <Typography variant="subtitle1" fontWeight="bold">Pipeline 1.5: Pipeline 1 + Scheduled Global Action</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Like Pipeline 1, plus scheduled Global Action (daily/monthly) for complete checks.
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    Features:
                                   </Typography>
+                                  <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                                    <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Quality checking with 2-hour immunity</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Scheduled Global Action (daily/monthly)</Typography></li>
+                                  </Box>
                                 </Box>
                               }
                               sx={{ alignItems: 'flex-start', m: 0 }}
@@ -829,9 +857,13 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                               label={
                                 <Box>
                                   <Typography variant="subtitle1" fontWeight="bold">Pipeline 2: Update → Match only (no automatic checking)</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Updates M3U playlists and matches streams, but no automatic quality checking.
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    Features:
                                   </Typography>
+                                  <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                                    <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                                  </Box>
                                 </Box>
                               }
                               sx={{ alignItems: 'flex-start', m: 0 }}
@@ -845,9 +877,14 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                               label={
                                 <Box>
                                   <Typography variant="subtitle1" fontWeight="bold">Pipeline 2.5: Pipeline 2 + Scheduled Global Action</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    Like Pipeline 2, plus scheduled Global Action (daily/monthly) for complete checks.
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    Features:
                                   </Typography>
+                                  <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                                    <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">Scheduled Global Action (daily/monthly)</Typography></li>
+                                  </Box>
                                 </Box>
                               }
                               sx={{ alignItems: 'flex-start', m: 0 }}
@@ -861,9 +898,13 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                               label={
                                 <Box>
                                   <Typography variant="subtitle1" fontWeight="bold">Pipeline 3: Only Scheduled Global Action</Typography>
-                                  <Typography variant="body2" color="text.secondary">
-                                    NO automatic updates. ONLY runs scheduled Global Action (daily/monthly).
+                                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    Features:
                                   </Typography>
+                                  <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                                    <li><Typography variant="body2" color="text.secondary">Scheduled Global Action ONLY (daily/monthly)</Typography></li>
+                                    <li><Typography variant="body2" color="text.secondary">NO automatic updates or checking</Typography></li>
+                                  </Box>
                                 </Box>
                               }
                               sx={{ alignItems: 'flex-start', m: 0 }}
@@ -953,58 +994,7 @@ function SetupWizard({ onComplete, setupStatus: initialSetupStatus }) {
                         </>
                       )}
                       
-                      <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
-                        Enabled Features
-                      </Typography>
-                      
-                      <FormGroup>
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={config.autostart_automation || false}
-                              onChange={(e) => handleConfigChange('autostart_automation', e.target.checked)}
-                            />
-                          }
-                          label="Start Automation Service on Startup"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={config.enabled_features.auto_playlist_update}
-                              onChange={(e) => handleConfigChange('enabled_features.auto_playlist_update', e.target.checked)}
-                            />
-                          }
-                          label="Auto Playlist Update"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={config.enabled_features.auto_stream_discovery}
-                              onChange={(e) => handleConfigChange('enabled_features.auto_stream_discovery', e.target.checked)}
-                            />
-                          }
-                          label="Auto Stream Discovery"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={config.enabled_features.auto_quality_reordering}
-                              onChange={(e) => handleConfigChange('enabled_features.auto_quality_reordering', e.target.checked)}
-                            />
-                          }
-                          label="Auto Quality Reordering"
-                        />
-                        <FormControlLabel
-                          control={
-                            <Switch
-                              checked={config.enabled_features.changelog_tracking}
-                              onChange={(e) => handleConfigChange('enabled_features.changelog_tracking', e.target.checked)}
-                            />
-                          }
-                          label="Changelog Tracking"
-                        />
-                      </FormGroup>
-                      
+
                       {m3uAccounts.length > 0 && (
                         <>
                           <Typography variant="h6" sx={{ mt: 3, mb: 2 }}>
