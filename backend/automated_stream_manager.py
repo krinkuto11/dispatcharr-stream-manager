@@ -747,6 +747,16 @@ class AutomatedStreamManager:
     
     def run_automation_cycle(self):
         """Run one complete automation cycle."""
+        # Check if a global action is in progress - if so, skip this cycle
+        try:
+            from stream_checker_service import get_stream_checker_service
+            stream_checker = get_stream_checker_service()
+            if stream_checker.global_action_in_progress:
+                logging.debug("Skipping automation cycle - global action in progress")
+                return
+        except Exception as e:
+            logging.debug(f"Could not check global action status: {e}")
+        
         # Only log and run if it's actually time to update
         if not self.should_run_playlist_update():
             return  # Skip silently until it's time

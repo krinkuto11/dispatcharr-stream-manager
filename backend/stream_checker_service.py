@@ -726,6 +726,7 @@ class StreamCheckerService:
         
         self.running = False
         self.checking = False
+        self.global_action_in_progress = False
         self.worker_thread = None
         self.scheduler_thread = None
         self.lock = threading.Lock()
@@ -807,10 +808,13 @@ class StreamCheckerService:
                 if triggered:
                     self.check_trigger.clear()
                     # Only process channel queueing if this was a real M3U update trigger
-                    # (not a config change wake-up)
+                    # (not a config change wake-up) AND no global action is in progress
                     if not self.config_changed.is_set():
-                        # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
-                        self._queue_updated_channels()
+                        if self.global_action_in_progress:
+                            logging.info("Skipping channel queueing - global action in progress")
+                        else:
+                            # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
+                            self._queue_updated_channels()
                 
                 # Check if config was changed
                 if self.config_changed.is_set():
@@ -818,7 +822,9 @@ class StreamCheckerService:
                     logging.info("Configuration change detected, applying new settings immediately")
                 
                 # Check if it's time for a global check (checked on every iteration)
-                self._check_global_schedule()
+                # This will set global_action_in_progress if a global action is triggered
+                if not self.global_action_in_progress:
+                    self._check_global_schedule()
                 
             except Exception as e:
                 logging.error(f"Error in scheduler loop: {e}", exc_info=True)
@@ -941,10 +947,15 @@ class StreamCheckerService:
         1. Reloads enabled M3U accounts
         2. Matches new streams with regex patterns
         3. Checks every channel from every stream (bypassing 2-hour immunity)
+        
+        During this operation, regular automated updates, matching, and checking are paused.
         """
         try:
+            # Set global action flag to prevent concurrent operations
+            self.global_action_in_progress = True
             logging.info("=" * 80)
             logging.info("STARTING GLOBAL ACTION")
+            logging.info("Regular automation paused during global action")
             logging.info("=" * 80)
             
             automation_manager = None
@@ -982,10 +993,14 @@ class StreamCheckerService:
             
             logging.info("=" * 80)
             logging.info("GLOBAL ACTION INITIATED SUCCESSFULLY")
+            logging.info("Regular automation will resume")
             logging.info("=" * 80)
             
         except Exception as e:
             logging.error(f"Error performing global action: {e}", exc_info=True)
+        finally:
+            # Always clear the flag, even if there was an error
+            self.global_action_in_progress = False
     
     def _queue_all_channels(self, force_check: bool = False):
         """Queue all channels for checking (global check).
@@ -1490,6 +1505,7 @@ class StreamCheckerService:
         return {
             'running': self.running,
             'checking': self.checking,
+            'global_action_in_progress': self.global_action_in_progress,
             'enabled': self.config.get('enabled', True),
             'queue': queue_status,
             'progress': progress,
