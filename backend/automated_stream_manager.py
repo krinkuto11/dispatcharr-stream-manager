@@ -645,10 +645,16 @@ class AutomatedStreamManager:
             # Add comprehensive changelog entry
             total_assigned = sum(assignment_count.values())
             if self.config.get("enabled_features", {}).get("changelog_tracking", True):
+                # Limit detailed assignments to prevent oversized changelog entries
+                # Sort by stream count (descending) to show the most significant updates
+                sorted_assignments = sorted(detailed_assignments, key=lambda x: x['stream_count'], reverse=True)
+                max_channels_in_changelog = 50  # Limit to 50 channels to prevent performance issues
+                
                 self.changelog.add_entry("streams_assigned", {
                     "total_assigned": total_assigned,
                     "channel_count": len(assignment_count),
-                    "assignments": detailed_assignments,
+                    "assignments": sorted_assignments[:max_channels_in_changelog],
+                    "has_more_channels": len(sorted_assignments) > max_channels_in_changelog,
                     "timestamp": datetime.now().isoformat()
                 })
             
