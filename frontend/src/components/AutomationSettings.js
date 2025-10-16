@@ -166,9 +166,13 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Disabled</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Complete automation system is in a non-working state. No automatic updates, matching, or checking will occur.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Complete automation system disabled</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">No automatic updates, matching, or checking</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
@@ -184,9 +188,14 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Pipeline 1: Update → Match → Check (with 2hr immunity)</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Automatic M3U updates, stream matching, and quality checking. Recently checked streams are cached for 2 hours to reduce connection usage.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Quality checking with 2-hour immunity</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
@@ -202,9 +211,15 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Pipeline 1.5: Pipeline 1 + Scheduled Global Action</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Like Pipeline 1, but adds a scheduled Global Action (daily or monthly) that checks ALL channels during off-peak hours, bypassing the 2-hour immunity.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Quality checking with 2-hour immunity</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Scheduled Global Action (daily/monthly)</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
@@ -220,9 +235,13 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Pipeline 2: Update → Match only (no automatic checking)</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Updates M3U playlists and matches streams to channels, but NO automatic stream quality checking. Best for strict connection limits.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
@@ -238,9 +257,14 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Pipeline 2.5: Pipeline 2 + Scheduled Global Action</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Like Pipeline 2, but adds a scheduled Global Action (daily or monthly) that checks ALL channels during off-peak hours.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Automatic M3U updates</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Stream matching</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">Scheduled Global Action (daily/monthly)</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
@@ -256,9 +280,13 @@ function AutomationSettings() {
                         label={
                           <Box>
                             <Typography variant="h6">Pipeline 3: Only Scheduled Global Action</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              NO automatic updates or checking. ONLY runs the scheduled Global Action (daily or monthly) at a specific time. Complete control over when operations occur.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                              Features:
                             </Typography>
+                            <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2 }}>
+                              <li><Typography variant="body2" color="text.secondary">Scheduled Global Action ONLY (daily/monthly)</Typography></li>
+                              <li><Typography variant="body2" color="text.secondary">NO automatic updates or checking</Typography></li>
+                            </Box>
                           </Box>
                         }
                         sx={{ alignItems: 'flex-start' }}
