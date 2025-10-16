@@ -40,37 +40,6 @@ function Changelog() {
   const [channelLogos, setChannelLogos] = useState({});
   const [expandedEntries, setExpandedEntries] = useState({});
 
-  // Load cached logos from localStorage
-  const loadCachedLogos = useCallback(() => {
-    try {
-      const cached = localStorage.getItem('channelLogosCache');
-      if (cached) {
-        const { logos, timestamp } = JSON.parse(cached);
-        // Cache expires after 24 hours
-        const cacheAge = Date.now() - timestamp;
-        if (cacheAge < 24 * 60 * 60 * 1000) {
-          setChannelLogos(logos);
-          return logos;
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load cached logos:', err);
-    }
-    return {};
-  }, []);
-
-  // Save logos to cache
-  const saveCachedLogos = useCallback((logos) => {
-    try {
-      localStorage.setItem('channelLogosCache', JSON.stringify({
-        logos,
-        timestamp: Date.now()
-      }));
-    } catch (err) {
-      console.warn('Failed to cache logos:', err);
-    }
-  }, []);
-
   const fetchChannelLogos = useCallback(async (channelIds, existingLogos = {}) => {
     const logos = { ...existingLogos };
     
@@ -116,11 +85,18 @@ function Changelog() {
       }
       
       // Final update and cache
-      saveCachedLogos(logos);
+      try {
+        localStorage.setItem('channelLogosCache', JSON.stringify({
+          logos,
+          timestamp: Date.now()
+        }));
+      } catch (err) {
+        console.warn('Failed to cache logos:', err);
+      }
     } catch (err) {
       console.warn('Failed to fetch channel data:', err);
     }
-  }, [saveCachedLogos]);
+  }, []);
 
   const loadChangelog = useCallback(async () => {
     try {
@@ -129,7 +105,21 @@ function Changelog() {
       setChangelog(response.data);
       
       // Load cached logos first
-      const cachedLogos = loadCachedLogos();
+      let cachedLogos = {};
+      try {
+        const cached = localStorage.getItem('channelLogosCache');
+        if (cached) {
+          const { logos, timestamp } = JSON.parse(cached);
+          // Cache expires after 24 hours
+          const cacheAge = Date.now() - timestamp;
+          if (cacheAge < 24 * 60 * 60 * 1000) {
+            setChannelLogos(logos);
+            cachedLogos = logos;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load cached logos:', err);
+      }
       
       // Extract unique channel IDs and fetch their logos
       const channelIds = new Set();
@@ -154,7 +144,7 @@ function Changelog() {
     } finally {
       setLoading(false);
     }
-  }, [days, loadCachedLogos, fetchChannelLogos]);
+  }, [days, fetchChannelLogos]);
 
 
 
