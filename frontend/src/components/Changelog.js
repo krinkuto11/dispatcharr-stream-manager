@@ -20,7 +20,8 @@ import {
   ListItem,
   ListItemText,
   Divider,
-  Stack
+  Stack,
+  Pagination
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -39,6 +40,8 @@ function Changelog() {
   const [days, setDays] = useState(7);
   const [channelLogos, setChannelLogos] = useState({});
   const [expandedEntries, setExpandedEntries] = useState({});
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchChannelLogos = useCallback(async (channelIds, existingLogos = {}) => {
     const logos = { ...existingLogos };
@@ -101,6 +104,7 @@ function Changelog() {
   const loadChangelog = useCallback(async () => {
     try {
       setLoading(true);
+      setPage(1); // Reset to first page when loading new data
       const response = await changelogAPI.getChangelog(days);
       setChangelog(response.data);
       
@@ -202,14 +206,21 @@ function Changelog() {
           </Typography>
         </Stack>
         <List dense sx={{ pl: 2 }}>
-          {streams.slice(0, 10).map((stream, idx) => (
-            <ListItem key={idx} sx={{ py: 0.25 }}>
-              <ListItemText 
-                primary={stream.stream_name || stream}
-                primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
-              />
-            </ListItem>
-          ))}
+          {streams.slice(0, 10).map((stream, idx) => {
+            // Handle both {stream_name, stream_id} and {name, id} formats
+            const streamName = typeof stream === 'string' 
+              ? stream 
+              : (stream.stream_name || stream.name || `Stream ${stream.stream_id || stream.id || 'unknown'}`);
+            
+            return (
+              <ListItem key={idx} sx={{ py: 0.25 }}>
+                <ListItemText 
+                  primary={streamName}
+                  primaryTypographyProps={{ variant: 'body2', fontSize: '0.875rem' }}
+                />
+              </ListItem>
+            );
+          })}
           {streams.length > 10 && (
             <ListItem sx={{ py: 0.25 }}>
               <ListItemText 
@@ -593,9 +604,30 @@ function Changelog() {
           No changelog entries found for the selected time period.
         </Alert>
       ) : (
-        <Box>
-          {changelog.map((entry, index) => renderChangelogEntry(entry, index))}
-        </Box>
+        <>
+          <Box>
+            {changelog
+              .slice((page - 1) * itemsPerPage, page * itemsPerPage)
+              .map((entry, index) => renderChangelogEntry(entry, (page - 1) * itemsPerPage + index))}
+          </Box>
+          
+          {changelog.length > itemsPerPage && (
+            <Box display="flex" justifyContent="center" sx={{ mt: 3, mb: 2 }}>
+              <Pagination
+                count={Math.ceil(changelog.length / itemsPerPage)}
+                page={page}
+                onChange={(event, value) => {
+                  setPage(value);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                color="primary"
+                size="large"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
+        </>
       )}
     </Box>
   );

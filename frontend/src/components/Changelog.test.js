@@ -103,4 +103,124 @@ describe('Changelog Component', () => {
     // It should only be called when days changes via user interaction
     expect(changelogAPI.getChangelog.mock.calls.length).toBe(initialCallCount);
   });
+
+  test('handles playlist_refresh action with streams having {id, name} format', async () => {
+    const mockChangelogData = [
+      {
+        action: 'playlist_refresh',
+        timestamp: '2025-10-16T12:00:00Z',
+        details: {
+          success: true,
+          total_streams: 102,
+          added_streams: [
+            { id: 1, name: 'Stream 1' },
+            { id: 2, name: 'Stream 2' }
+          ],
+          removed_streams: [
+            { id: 3, name: 'Stream 3' }
+          ]
+        }
+      }
+    ];
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify that stream names are displayed correctly without React errors
+    expect(screen.getByText('Stream 1')).toBeInTheDocument();
+    expect(screen.getByText('Stream 2')).toBeInTheDocument();
+    expect(screen.getByText('Stream 3')).toBeInTheDocument();
+  });
+
+  test('handles streams_assigned action with streams having {stream_id, stream_name} format', async () => {
+    const mockChangelogData = [
+      {
+        action: 'streams_assigned',
+        timestamp: '2025-10-16T12:00:00Z',
+        details: {
+          total_assigned: 5,
+          channel_count: 1,
+          assignments: [
+            {
+              channel_id: 100,
+              channel_name: 'Test Channel',
+              stream_count: 5,
+              streams: [
+                { stream_id: 1, stream_name: 'Assigned Stream 1' },
+                { stream_id: 2, stream_name: 'Assigned Stream 2' }
+              ]
+            }
+          ]
+        }
+      }
+    ];
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify that stream names are displayed correctly
+    expect(screen.getByText('Assigned Stream 1')).toBeInTheDocument();
+    expect(screen.getByText('Assigned Stream 2')).toBeInTheDocument();
+  });
+
+  test('displays pagination when there are more than 10 entries', async () => {
+    // Create 15 mock changelog entries
+    const mockChangelogData = Array.from({ length: 15 }, (_, i) => ({
+      action: 'playlist_refresh',
+      timestamp: `2025-10-16T${String(i).padStart(2, '0')}:00:00Z`,
+      details: {
+        success: true,
+        total_streams: 100 + i,
+        added_streams: [],
+        removed_streams: []
+      }
+    }));
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify pagination is displayed
+    const pagination = screen.getByRole('navigation');
+    expect(pagination).toBeInTheDocument();
+  });
+
+  test('hides pagination when there are 10 or fewer entries', async () => {
+    const mockChangelogData = Array.from({ length: 5 }, (_, i) => ({
+      action: 'playlist_refresh',
+      timestamp: `2025-10-16T${String(i).padStart(2, '0')}:00:00Z`,
+      details: {
+        success: true,
+        total_streams: 100 + i,
+        added_streams: [],
+        removed_streams: []
+      }
+    }));
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify pagination is not displayed
+    const pagination = screen.queryByRole('navigation');
+    expect(pagination).not.toBeInTheDocument();
+  });
 });
