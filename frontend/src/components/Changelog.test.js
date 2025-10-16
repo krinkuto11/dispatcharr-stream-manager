@@ -172,4 +172,55 @@ describe('Changelog Component', () => {
     expect(screen.getByText('Assigned Stream 1')).toBeInTheDocument();
     expect(screen.getByText('Assigned Stream 2')).toBeInTheDocument();
   });
+
+  test('displays pagination when there are more than 10 entries', async () => {
+    // Create 15 mock changelog entries
+    const mockChangelogData = Array.from({ length: 15 }, (_, i) => ({
+      action: 'playlist_refresh',
+      timestamp: `2025-10-16T${String(i).padStart(2, '0')}:00:00Z`,
+      details: {
+        success: true,
+        total_streams: 100 + i,
+        added_streams: [],
+        removed_streams: []
+      }
+    }));
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify pagination is displayed
+    const pagination = screen.getByRole('navigation');
+    expect(pagination).toBeInTheDocument();
+  });
+
+  test('hides pagination when there are 10 or fewer entries', async () => {
+    const mockChangelogData = Array.from({ length: 5 }, (_, i) => ({
+      action: 'playlist_refresh',
+      timestamp: `2025-10-16T${String(i).padStart(2, '0')}:00:00Z`,
+      details: {
+        success: true,
+        total_streams: 100 + i,
+        added_streams: [],
+        removed_streams: []
+      }
+    }));
+
+    changelogAPI.getChangelog.mockResolvedValue({ data: mockChangelogData });
+
+    render(<Changelog />);
+
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Verify pagination is not displayed
+    const pagination = screen.queryByRole('navigation');
+    expect(pagination).not.toBeInTheDocument();
+  });
 });
