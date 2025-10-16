@@ -38,6 +38,7 @@ function Changelog() {
   const [error, setError] = useState('');
   const [days, setDays] = useState(7);
   const [channelLogos, setChannelLogos] = useState({});
+  const [expandedEntries, setExpandedEntries] = useState({});
 
   // Load cached logos from localStorage
   const loadCachedLogos = useCallback(() => {
@@ -78,21 +79,43 @@ function Changelog() {
       const response = await axios.get('/api/channels');
       const channels = response.data;
       
+      // Create a map of channel IDs to logo IDs for quick lookup
+      const channelLogoIds = {};
       for (const channelId of channelIds) {
         const channel = channels.find(ch => String(ch.id) === String(channelId));
         if (channel && channel.logo_id) {
-          // Fetch logo URL from Dispatcharr API
-          try {
-            const logoResponse = await axios.get(`/api/channels/logos/${channel.logo_id}`);
-            logos[channelId] = logoResponse.data.url || logoResponse.data.cache_url;
-          } catch (logoErr) {
-            console.warn(`Failed to fetch logo for channel ${channelId}:`, logoErr);
-          }
+          channelLogoIds[channelId] = channel.logo_id;
         }
       }
       
-      // Update state and cache
-      setChannelLogos(logos);
+      // Fetch all logos in parallel (with batching to avoid overwhelming the server)
+      const batchSize = 10;
+      const channelIdArray = Object.keys(channelLogoIds);
+      
+      for (let i = 0; i < channelIdArray.length; i += batchSize) {
+        const batch = channelIdArray.slice(i, i + batchSize);
+        const logoPromises = batch.map(async (channelId) => {
+          try {
+            const logoResponse = await axios.get(`/api/channels/logos/${channelLogoIds[channelId]}`);
+            return { channelId, url: logoResponse.data.url || logoResponse.data.cache_url };
+          } catch (logoErr) {
+            console.warn(`Failed to fetch logo for channel ${channelId}:`, logoErr);
+            return { channelId, url: null };
+          }
+        });
+        
+        const batchResults = await Promise.all(logoPromises);
+        batchResults.forEach(({ channelId, url }) => {
+          if (url) {
+            logos[channelId] = url;
+          }
+        });
+        
+        // Update state after each batch for progressive loading
+        setChannelLogos({ ...logos });
+      }
+      
+      // Final update and cache
       saveCachedLogos(logos);
     } catch (err) {
       console.warn('Failed to fetch channel data:', err);
@@ -250,11 +273,23 @@ function Changelog() {
     );
   };
 
+  const toggleExpandEntry = (entryIndex) => {
+    setExpandedEntries(prev => ({
+      ...prev,
+      [entryIndex]: !prev[entryIndex]
+    }));
+  };
+
   const renderChangelogEntry = (entry, index) => {
     const { action, details, timestamp } = entry;
     
     // Render based on action type
     if (action === 'streams_assigned' && details?.assignments) {
+      const isExpanded = expandedEntries[index] !== false; // Default to expanded
+      const maxChannelsToShow = 10; // Show first 10 channels by default
+      const hasMoreChannels = details.assignments.length > maxChannelsToShow || details.has_more_channels;
+      const channelsToDisplay = isExpanded ? details.assignments : details.assignments.slice(0, maxChannelsToShow);
+      
       return (
         <Card key={index} sx={{ mb: 3 }}>
           <CardContent>
@@ -277,12 +312,30 @@ function Changelog() {
             <Divider sx={{ my: 2 }} />
             
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              {details.channel_count} channel{details.channel_count !== 1 ? 's' : ''} updated:
+              {details.channel_count} channel{details.channel_count !== 1 ? 's' : ''} updated
+              {details.has_more_channels && ' (showing top channels by stream count)'}:
             </Typography>
             
             <Box sx={{ mt: 2 }}>
-              {details.assignments.map(assignment => renderChannelBlock(assignment))}
+              {channelsToDisplay.map(assignment => renderChannelBlock(assignment))}
             </Box>
+            
+            {hasMoreChannels && (
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
+                <Chip
+                  label={isExpanded ? 'Show Less' : `Show ${details.assignments.length - maxChannelsToShow} More Channel${details.assignments.length - maxChannelsToShow !== 1 ? 's' : ''}`}
+                  onClick={() => toggleExpandEntry(index)}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ cursor: 'pointer' }}
+                />
+                {details.has_more_channels && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Note: Only top channels shown for performance
+                  </Typography>
+                )}
+              </Box>
+            )}
           </CardContent>
         </Card>
       );

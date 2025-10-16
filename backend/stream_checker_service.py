@@ -733,6 +733,9 @@ class StreamCheckerService:
         # Event for immediate triggering of updated channels check
         self.check_trigger = threading.Event()
         
+        # Event for immediate config change notification
+        self.config_changed = threading.Event()
+        
         logging.info("Stream Checker Service initialized")
     
     def start(self):
@@ -805,6 +808,11 @@ class StreamCheckerService:
                     self.check_trigger.clear()
                     if self.config.get('queue.check_on_update', True):
                         self._queue_updated_channels()
+                
+                # Check if config was changed
+                if self.config_changed.is_set():
+                    self.config_changed.clear()
+                    logging.info("Configuration change detected, applying new settings immediately")
                 
                 # Check if it's time for a global check (checked on every iteration)
                 self._check_global_schedule()
@@ -1513,8 +1521,51 @@ class StreamCheckerService:
             logging.warning("Cannot trigger check - service is not running")
     
     def update_config(self, updates: Dict):
-        """Update service configuration."""
+        """Update service configuration and apply changes immediately."""
+        # Log what's being updated
+        config_changes = []
+        if 'pipeline_mode' in updates:
+            old_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
+            new_mode = updates['pipeline_mode']
+            if old_mode != new_mode:
+                config_changes.append(f"Pipeline mode: {old_mode} → {new_mode}")
+        
+        if 'global_check_schedule' in updates:
+            schedule_changes = []
+            schedule = updates['global_check_schedule']
+            if 'hour' in schedule or 'minute' in schedule:
+                old_hour = self.config.get('global_check_schedule.hour', 3)
+                old_minute = self.config.get('global_check_schedule.minute', 0)
+                new_hour = schedule.get('hour', old_hour)
+                new_minute = schedule.get('minute', old_minute)
+                if old_hour != new_hour or old_minute != new_minute:
+                    schedule_changes.append(f"Time: {old_hour:02d}:{old_minute:02d} → {new_hour:02d}:{new_minute:02d}")
+            if 'frequency' in schedule:
+                old_freq = self.config.get('global_check_schedule.frequency', 'daily')
+                new_freq = schedule['frequency']
+                if old_freq != new_freq:
+                    schedule_changes.append(f"Frequency: {old_freq} → {new_freq}")
+            if 'enabled' in schedule:
+                old_enabled = self.config.get('global_check_schedule.enabled', True)
+                new_enabled = schedule['enabled']
+                if old_enabled != new_enabled:
+                    schedule_changes.append(f"Enabled: {old_enabled} → {new_enabled}")
+            if schedule_changes:
+                config_changes.append(f"Global check schedule: {', '.join(schedule_changes)}")
+        
+        # Apply the configuration update
         self.config.update(updates)
+        
+        # Log the changes
+        if config_changes:
+            logging.info(f"Configuration updated: {'; '.join(config_changes)}")
+        else:
+            logging.info("Configuration updated")
+        
+        # Signal that config has changed for immediate application
+        if self.running:
+            self.config_changed.set()
+            logging.info("Configuration changes will be applied immediately")
         
         # Reload queue max size if changed
         if 'queue' in updates and 'max_size' in updates['queue']:

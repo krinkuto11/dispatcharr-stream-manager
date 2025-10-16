@@ -322,10 +322,44 @@ class AutomatedStreamManager:
             json.dump(config, f, indent=2)
     
     def update_config(self, updates: Dict):
-        """Update configuration with new values."""
+        """Update configuration with new values and apply immediately."""
+        # Log what's being updated
+        config_changes = []
+        
+        if 'playlist_update_interval_minutes' in updates:
+            old_interval = self.config.get('playlist_update_interval_minutes', 5)
+            new_interval = updates['playlist_update_interval_minutes']
+            if old_interval != new_interval:
+                config_changes.append(f"Playlist update interval: {old_interval} → {new_interval} minutes")
+        
+        if 'enabled_features' in updates:
+            old_features = self.config.get('enabled_features', {})
+            new_features = updates['enabled_features']
+            for feature, enabled in new_features.items():
+                old_value = old_features.get(feature, True)
+                if old_value != enabled:
+                    status = "enabled" if enabled else "disabled"
+                    config_changes.append(f"{feature}: {status}")
+        
+        if 'enabled_m3u_accounts' in updates:
+            old_accounts = self.config.get('enabled_m3u_accounts', [])
+            new_accounts = updates['enabled_m3u_accounts']
+            if old_accounts != new_accounts:
+                if not new_accounts:
+                    config_changes.append("M3U accounts: all enabled")
+                else:
+                    config_changes.append(f"M3U accounts: {len(new_accounts)} selected")
+        
+        # Apply the configuration update
         self.config.update(updates)
         self._save_config(self.config)
-        logging.info("Configuration updated")
+        
+        # Log the changes
+        if config_changes:
+            logging.info(f"Automation configuration updated: {'; '.join(config_changes)}")
+            logging.info("Changes will take effect on next scheduled operation")
+        else:
+            logging.info("Automation configuration updated")
     
     def refresh_playlists(self) -> bool:
         """Refresh M3U playlists and track changes."""
@@ -645,10 +679,16 @@ class AutomatedStreamManager:
             # Add comprehensive changelog entry
             total_assigned = sum(assignment_count.values())
             if self.config.get("enabled_features", {}).get("changelog_tracking", True):
+                # Limit detailed assignments to prevent oversized changelog entries
+                # Sort by stream count (descending) to show the most significant updates
+                sorted_assignments = sorted(detailed_assignments, key=lambda x: x['stream_count'], reverse=True)
+                max_channels_in_changelog = 50  # Limit to 50 channels to prevent performance issues
+                
                 self.changelog.add_entry("streams_assigned", {
                     "total_assigned": total_assigned,
                     "channel_count": len(assignment_count),
-                    "assignments": detailed_assignments,
+                    "assignments": sorted_assignments[:max_channels_in_changelog],
+                    "has_more_channels": len(sorted_assignments) > max_channels_in_changelog,
                     "timestamp": datetime.now().isoformat()
                 })
             
