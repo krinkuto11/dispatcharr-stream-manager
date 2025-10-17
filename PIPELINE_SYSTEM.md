@@ -154,6 +154,16 @@ Global Actions run:
 - **Automatically:** Based on the scheduled time (for Pipeline 1.5, 2.5, and 3)
 - **Manually:** Via the "Global Action" button in the UI or API call
 
+### Exclusive Execution
+
+**Important:** During a global action, all regular automation is paused to prevent concurrent operations:
+- Regular M3U update cycles are skipped
+- Automated stream matching is paused
+- Regular channel queueing for checking is suspended
+- Once the global action completes, regular automation automatically resumes
+
+This ensures that global actions run cleanly without interference from regular operations, and prevents resource contention.
+
 ### Force Check Behavior
 
 During a Global Action, all channels are marked for "force check" which:
@@ -191,6 +201,7 @@ GET /api/stream-checker/status
 ```json
 {
   "running": true,
+  "global_action_in_progress": false,
   "config": {
     "pipeline_mode": "pipeline_1_5",
     "global_check_schedule": {
@@ -336,6 +347,21 @@ All pipeline modes are thoroughly tested:
 
 ## UI Configuration
 
+### Setup Wizard
+
+The **Setup Wizard** now includes pipeline selection during initial configuration:
+- Step 1: Dispatcharr Connection
+- Step 2: Channel Patterns Configuration
+- Step 3: **Pipeline Selection & Automation Settings**
+  - Choose your pipeline mode (1, 1.5, 2, 2.5, or 3)
+  - Configure schedule for pipelines with scheduled actions
+  - Set update intervals and feature toggles
+- Step 4: Setup Complete
+
+This ensures new installations start with an appropriate pipeline mode for their needs.
+
+### Configuration Page
+
 The web interface provides a unified **Configuration** page where you can:
 
 1. **Select Pipeline Mode**: Choose from 5 pipeline modes with clear descriptions
@@ -355,8 +381,11 @@ The web interface provides a unified **Configuration** page where you can:
    - Stream analysis parameters
    - Queue settings
 
-**Stream Checker Page**: Monitor real-time statistics and progress
+### Stream Checker Page
+
+Monitor real-time statistics and progress:
 - View current pipeline and schedule
+- See if a global action is currently in progress
 - Manually trigger Global Action
 - Monitor queue status and check progress
 

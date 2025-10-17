@@ -78,6 +78,34 @@ def get_regex_matcher():
         regex_matcher = RegexChannelMatcher()
     return regex_matcher
 
+def check_wizard_complete():
+    """Check if the setup wizard has been completed."""
+    try:
+        config_file = CONFIG_DIR / 'automation_config.json'
+        regex_file = CONFIG_DIR / 'channel_regex_config.json'
+        
+        # Check if configuration files exist
+        if not config_file.exists() or not regex_file.exists():
+            return False
+        
+        # Check if we have patterns configured
+        if regex_file.exists():
+            matcher = get_regex_matcher()
+            patterns = matcher.get_patterns()
+            if not patterns.get('patterns'):
+                return False
+        else:
+            return False
+        
+        # Check if we can connect to Dispatcharr (optional - use cached result)
+        # For startup, we'll accept the configuration exists as sufficient
+        # The actual connection test will be done by the wizard
+        
+        return True
+    except Exception as e:
+        logging.warning(f"Error checking wizard completion status: {e}")
+        return False
+
 
 
 @app.route('/', methods=['GET'])
@@ -276,6 +304,58 @@ def delete_regex_pattern(channel_id):
             return jsonify({"error": "Pattern not found"}), 404
     except Exception as e:
         logging.error(f"Error deleting regex pattern: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/regex-patterns/import', methods=['POST'])
+def import_regex_patterns():
+    """Import regex patterns from JSON file."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Validate the JSON structure
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid JSON format: must be an object"}), 400
+        
+        if 'patterns' not in data:
+            return jsonify({"error": "Invalid JSON format: missing 'patterns' field"}), 400
+        
+        if not isinstance(data['patterns'], dict):
+            return jsonify({"error": "Invalid JSON format: 'patterns' must be an object"}), 400
+        
+        # Validate each pattern
+        matcher = get_regex_matcher()
+        for channel_id, pattern_data in data['patterns'].items():
+            if not isinstance(pattern_data, dict):
+                return jsonify({"error": f"Invalid pattern format for channel {channel_id}"}), 400
+            
+            if 'regex' not in pattern_data:
+                return jsonify({"error": f"Missing 'regex' field for channel {channel_id}"}), 400
+            
+            if not isinstance(pattern_data['regex'], list):
+                return jsonify({"error": f"'regex' must be a list for channel {channel_id}"}), 400
+            
+            # Validate regex patterns
+            is_valid, error_msg = matcher.validate_regex_patterns(pattern_data['regex'])
+            if not is_valid:
+                return jsonify({"error": f"Invalid regex pattern for channel {channel_id}: {error_msg}"}), 400
+        
+        # If validation passes, save the patterns
+        matcher._save_patterns(data)
+        
+        # Reload patterns to ensure they're in sync
+        matcher.reload_patterns()
+        
+        pattern_count = len(data['patterns'])
+        logging.info(f"Imported {pattern_count} regex patterns successfully")
+        
+        return jsonify({
+            "message": f"Successfully imported {pattern_count} patterns",
+            "pattern_count": pattern_count
+        })
+    except Exception as e:
+        logging.error(f"Error importing regex patterns: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/test-regex', methods=['POST'])
@@ -852,6 +932,29 @@ def update_stream_checker_config():
         
         service = get_stream_checker_service()
         service.update_config(data)
+        
+        # Auto-start or stop services based on pipeline mode when wizard is complete
+        if 'pipeline_mode' in data and check_wizard_complete():
+            pipeline_mode = data['pipeline_mode']
+            manager = get_automation_manager()
+            
+            if pipeline_mode == 'disabled':
+                # Stop services if pipeline is disabled
+                if service.running:
+                    service.stop()
+                    logging.info("Stream checker service stopped (pipeline disabled)")
+                if manager.running:
+                    manager.stop_automation()
+                    logging.info("Automation service stopped (pipeline disabled)")
+            else:
+                # Start services if pipeline is active and they're not already running
+                if not service.running:
+                    service.start()
+                    logging.info(f"Stream checker service auto-started after config update (mode: {pipeline_mode})")
+                if not manager.running:
+                    manager.start_automation()
+                    logging.info(f"Automation service auto-started after config update (mode: {pipeline_mode})")
+        
         return jsonify({"message": "Configuration updated successfully", "config": service.config.config})
     except Exception as e:
         logging.error(f"Error updating stream checker config: {e}")
@@ -1011,34 +1114,42 @@ if __name__ == '__main__':
     
     logging.info(f"Starting StreamFlow for Dispatcharr Web API on {args.host}:{args.port}")
     
-    # Auto-start stream checker service if enabled and pipeline mode is not disabled
+    # Auto-start stream checker service if enabled and pipeline mode is not disabled AND wizard is complete
     try:
-        service = get_stream_checker_service()
-        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
-        
-        if pipeline_mode == 'disabled':
-            logging.info("Stream checker service is disabled via pipeline mode")
-        elif service.config.get('enabled', True):
-            service.start()
-            logging.info(f"Stream checker service auto-started (mode: {pipeline_mode})")
+        # Check if wizard has been completed
+        if not check_wizard_complete():
+            logging.info("Stream checker service will not start - setup wizard has not been completed")
         else:
-            logging.info("Stream checker service is disabled in configuration")
+            service = get_stream_checker_service()
+            pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+            
+            if pipeline_mode == 'disabled':
+                logging.info("Stream checker service is disabled via pipeline mode")
+            elif service.config.get('enabled', True):
+                service.start()
+                logging.info(f"Stream checker service auto-started (mode: {pipeline_mode})")
+            else:
+                logging.info("Stream checker service is disabled in configuration")
     except Exception as e:
         logging.error(f"Failed to auto-start stream checker service: {e}")
     
-    # Auto-start automation service if pipeline mode is not disabled
+    # Auto-start automation service if pipeline mode is not disabled AND wizard is complete
     # When any pipeline other than disabled is selected, automation should auto-start
     try:
-        manager = get_automation_manager()
-        service = get_stream_checker_service()
-        pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
-        
-        if pipeline_mode == 'disabled':
-            logging.info("Automation service is disabled via pipeline mode")
+        # Check if wizard has been completed
+        if not check_wizard_complete():
+            logging.info("Automation service will not start - setup wizard has not been completed")
         else:
-            # Auto-start automation for any active pipeline
-            manager.start_automation()
-            logging.info(f"Automation service auto-started (mode: {pipeline_mode})")
+            manager = get_automation_manager()
+            service = get_stream_checker_service()
+            pipeline_mode = service.config.get('pipeline_mode', 'pipeline_1_5')
+            
+            if pipeline_mode == 'disabled':
+                logging.info("Automation service is disabled via pipeline mode")
+            else:
+                # Auto-start automation for any active pipeline
+                manager.start_automation()
+                logging.info(f"Automation service auto-started (mode: {pipeline_mode})")
     except Exception as e:
         logging.error(f"Failed to auto-start automation service: {e}")
     

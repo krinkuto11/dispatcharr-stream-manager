@@ -99,7 +99,8 @@ class StreamCheckConfig:
             'idet_frames': 500,  # frames to check for interlacing
             'timeout': 30,  # timeout for operations
             'retries': 1,  # retry attempts
-            'retry_delay': 10  # seconds between retries
+            'retry_delay': 10,  # seconds between retries
+            'user_agent': 'VLC/3.0.14'  # user agent for ffmpeg/ffprobe
         },
         'scoring': {
             'weights': {
@@ -726,12 +727,16 @@ class StreamCheckerService:
         
         self.running = False
         self.checking = False
+        self.global_action_in_progress = False
         self.worker_thread = None
         self.scheduler_thread = None
         self.lock = threading.Lock()
         
         # Event for immediate triggering of updated channels check
         self.check_trigger = threading.Event()
+        
+        # Event for immediate config change notification
+        self.config_changed = threading.Event()
         
         logging.info("Stream Checker Service initialized")
     
@@ -800,14 +805,27 @@ class StreamCheckerService:
                 # Wait for either a trigger event or timeout (60 seconds for global check monitoring)
                 triggered = self.check_trigger.wait(timeout=60)
                 
+                # Handle trigger for M3U updates
                 if triggered:
-                    # Event was triggered, clear it and check for updated channels
                     self.check_trigger.clear()
-                    if self.config.get('queue.check_on_update', True):
-                        self._queue_updated_channels()
+                    # Only process channel queueing if this was a real M3U update trigger
+                    # (not a config change wake-up) AND no global action is in progress
+                    if not self.config_changed.is_set():
+                        if self.global_action_in_progress:
+                            logging.info("Skipping channel queueing - global action in progress")
+                        else:
+                            # Call _queue_updated_channels() directly - it handles pipeline mode checking internally
+                            self._queue_updated_channels()
+                
+                # Check if config was changed
+                if self.config_changed.is_set():
+                    self.config_changed.clear()
+                    logging.info("Configuration change detected, applying new settings immediately")
                 
                 # Check if it's time for a global check (checked on every iteration)
-                self._check_global_schedule()
+                # This will set global_action_in_progress if a global action is triggered
+                if not self.global_action_in_progress:
+                    self._check_global_schedule()
                 
             except Exception as e:
                 logging.error(f"Error in scheduler loop: {e}", exc_info=True)
@@ -827,7 +845,7 @@ class StreamCheckerService:
         
         # Disabled and Pipelines 2, 2.5, and 3 don't check on update
         if pipeline_mode in ['disabled', 'pipeline_2', 'pipeline_2_5', 'pipeline_3']:
-            logging.debug(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
+            logging.info(f"Skipping channel queueing - {pipeline_mode} mode does not check on update")
             return
         
         max_channels = self.config.get('queue.max_channels_per_run', 50)
@@ -844,6 +862,8 @@ class StreamCheckerService:
             
             added = self.check_queue.add_channels(channels_to_queue, priority=10)
             logging.info(f"Queued {added}/{len(channels_to_queue)} updated channels for checking (mode: {pipeline_mode})")
+        else:
+            logging.debug(f"No channels need checking (mode: {pipeline_mode})")
     
     def _check_global_schedule(self):
         """Check if it's time for a scheduled global action.
@@ -857,6 +877,7 @@ class StreamCheckerService:
         - Prevents duplicate runs on the same day
         """
         if not self.config.get('global_check_schedule.enabled', True):
+            logging.debug("Global check schedule is disabled")
             return
         
         # Get pipeline mode
@@ -865,6 +886,7 @@ class StreamCheckerService:
         # Only pipelines with .5 suffix and pipeline_3 have scheduled global actions
         # Disabled mode skips all automation
         if pipeline_mode not in ['pipeline_1_5', 'pipeline_2_5', 'pipeline_3']:
+            logging.debug(f"Skipping global schedule check - {pipeline_mode} mode does not have scheduled global actions")
             return
         
         now = datetime.now()
@@ -926,10 +948,15 @@ class StreamCheckerService:
         1. Reloads enabled M3U accounts
         2. Matches new streams with regex patterns
         3. Checks every channel from every stream (bypassing 2-hour immunity)
+        
+        During this operation, regular automated updates, matching, and checking are paused.
         """
         try:
+            # Set global action flag to prevent concurrent operations
+            self.global_action_in_progress = True
             logging.info("=" * 80)
             logging.info("STARTING GLOBAL ACTION")
+            logging.info("Regular automation paused during global action")
             logging.info("=" * 80)
             
             automation_manager = None
@@ -967,10 +994,14 @@ class StreamCheckerService:
             
             logging.info("=" * 80)
             logging.info("GLOBAL ACTION INITIATED SUCCESSFULLY")
+            logging.info("Regular automation will resume")
             logging.info("=" * 80)
             
         except Exception as e:
             logging.error(f"Error performing global action: {e}", exc_info=True)
+        finally:
+            # Always clear the flag, even if there was an error
+            self.global_action_in_progress = False
     
     def _queue_all_channels(self, force_check: bool = False):
         """Queue all channels for checking (global check).
@@ -1192,7 +1223,8 @@ class StreamCheckerService:
                     timeout=analysis_params.get('timeout', 30),
                     retries=analysis_params.get('retries', 1),
                     retry_delay=analysis_params.get('retry_delay', 10),
-                    config=sorter_config
+                    config=sorter_config,
+                    user_agent=analysis_params.get('user_agent', 'VLC/3.0.14')
                 )
                 
                 # Update stream stats on dispatcharr with ffmpeg-extracted data
@@ -1261,7 +1293,8 @@ class StreamCheckerService:
                         timeout=analysis_params.get('timeout', 30),
                         retries=analysis_params.get('retries', 1),
                         retry_delay=analysis_params.get('retry_delay', 10),
-                        config=sorter_config
+                        config=sorter_config,
+                        user_agent=analysis_params.get('user_agent', 'VLC/3.0.14')
                     )
                     self._update_stream_stats(analyzed)
                     score = self._calculate_stream_score(analyzed)
@@ -1475,6 +1508,7 @@ class StreamCheckerService:
         return {
             'running': self.running,
             'checking': self.checking,
+            'global_action_in_progress': self.global_action_in_progress,
             'enabled': self.config.get('enabled', True),
             'queue': queue_status,
             'progress': progress,
@@ -1513,8 +1547,68 @@ class StreamCheckerService:
             logging.warning("Cannot trigger check - service is not running")
     
     def update_config(self, updates: Dict):
-        """Update service configuration."""
+        """Update service configuration and apply changes immediately."""
+        # Sanitize user_agent if present
+        if 'stream_analysis' in updates and 'user_agent' in updates['stream_analysis']:
+            user_agent = updates['stream_analysis']['user_agent']
+            # Sanitize user agent: allow alphanumeric, spaces, dots, slashes, dashes, underscores, parentheses
+            import re
+            sanitized = re.sub(r'[^a-zA-Z0-9 ./_\-()]+', '', str(user_agent))
+            # Limit length to 200 characters
+            sanitized = sanitized[:200].strip()
+            if not sanitized:
+                sanitized = 'VLC/3.0.14'  # Default fallback
+            updates['stream_analysis']['user_agent'] = sanitized
+            if sanitized != user_agent:
+                logging.warning(f"User agent sanitized from '{user_agent}' to '{sanitized}'")
+        
+        # Log what's being updated
+        config_changes = []
+        if 'pipeline_mode' in updates:
+            old_mode = self.config.get('pipeline_mode', 'pipeline_1_5')
+            new_mode = updates['pipeline_mode']
+            if old_mode != new_mode:
+                config_changes.append(f"Pipeline mode: {old_mode} → {new_mode}")
+        
+        if 'global_check_schedule' in updates:
+            schedule_changes = []
+            schedule = updates['global_check_schedule']
+            if 'hour' in schedule or 'minute' in schedule:
+                old_hour = self.config.get('global_check_schedule.hour', 3)
+                old_minute = self.config.get('global_check_schedule.minute', 0)
+                new_hour = schedule.get('hour', old_hour)
+                new_minute = schedule.get('minute', old_minute)
+                if old_hour != new_hour or old_minute != new_minute:
+                    schedule_changes.append(f"Time: {old_hour:02d}:{old_minute:02d} → {new_hour:02d}:{new_minute:02d}")
+            if 'frequency' in schedule:
+                old_freq = self.config.get('global_check_schedule.frequency', 'daily')
+                new_freq = schedule['frequency']
+                if old_freq != new_freq:
+                    schedule_changes.append(f"Frequency: {old_freq} → {new_freq}")
+            if 'enabled' in schedule:
+                old_enabled = self.config.get('global_check_schedule.enabled', True)
+                new_enabled = schedule['enabled']
+                if old_enabled != new_enabled:
+                    schedule_changes.append(f"Enabled: {old_enabled} → {new_enabled}")
+            if schedule_changes:
+                config_changes.append(f"Global check schedule: {', '.join(schedule_changes)}")
+        
+        # Apply the configuration update
         self.config.update(updates)
+        
+        # Log the changes
+        if config_changes:
+            logging.info(f"Configuration updated: {'; '.join(config_changes)}")
+        else:
+            logging.info("Configuration updated")
+        
+        # Signal that config has changed for immediate application
+        if self.running:
+            self.config_changed.set()
+            # Wake up the scheduler immediately by setting the trigger
+            # The scheduler will check config_changed and skip channel queueing
+            self.check_trigger.set()
+            logging.info("Configuration changes will be applied immediately")
         
         # Reload queue max size if changed
         if 'queue' in updates and 'max_size' in updates['queue']:
