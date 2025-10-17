@@ -260,11 +260,12 @@ def _check_ffmpeg_installed():
         logging.error(f"Error checking ffmpeg/ffprobe installation: {e}")
         return False
 
-def _get_stream_info(url, timeout):
+def _get_stream_info(url, timeout, user_agent='VLC/3.0.14'):
     """Gets stream information using ffprobe."""
     logging.debug(f"Running ffprobe for URL: {url[:50]}...")
     command = [
         'ffprobe',
+        '-user_agent', user_agent,
         '-v', 'error',
         '-show_entries', 'stream=codec_name,width,height,avg_frame_rate',
         '-of', 'json',
@@ -289,14 +290,14 @@ def _get_stream_info(url, timeout):
         logging.error(f"Stream info check failed for {url[:50]}...: {e}")
         return []
 
-def _check_interlaced_status(url, stream_name, idet_frames, timeout):
+def _check_interlaced_status(url, stream_name, idet_frames, timeout, user_agent='VLC/3.0.14'):
     """
     Checks if a video stream is interlaced using ffmpeg's idet filter.
     Returns 'INTERLACED', 'PROGRESSIVE', or 'UNKNOWN' if detection fails.
     """
     logging.debug(f"Checking interlacing for '{stream_name}' using {idet_frames} frames...")
     idet_command = [
-        'ffmpeg', '-user_agent', 'VLC/3.0.14',
+        'ffmpeg', '-user_agent', user_agent,
         '-analyzeduration', '5000000', '-probesize', '5000000',
         '-i', url, '-vf', 'idet', '-frames:v', str(idet_frames), '-an', '-f', 'null', 'NUL' if os.name == 'nt' else '/dev/null'
     ]
@@ -337,11 +338,11 @@ def _check_interlaced_status(url, stream_name, idet_frames, timeout):
         logging.error(f"Error checking interlacing for {stream_name}: {e}")
         return "UNKNOWN (Error)"
 
-def _get_bitrate_and_frame_stats(url, ffmpeg_duration, timeout):
+def _get_bitrate_and_frame_stats(url, ffmpeg_duration, timeout, user_agent='VLC/3.0.14'):
     """Gets bitrate and frame statistics using ffmpeg."""
     logging.debug(f"Analyzing bitrate and frame stats for {ffmpeg_duration}s...")
     command = [
-        'ffmpeg', '-re', '-v', 'debug', '-user_agent', 'VLC/3.0.14',
+        'ffmpeg', '-re', '-v', 'debug', '-user_agent', user_agent,
         '-i', url, '-t', str(ffmpeg_duration), '-f', 'null', '-'
     ]
     bitrate = "N/A"
@@ -489,7 +490,7 @@ def _check_stream_for_critical_errors(url, stream_name, timeout, config):
 
     return errors
 
-def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, retry_delay, config):
+def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, retry_delay, config, user_agent='VLC/3.0.14'):
     url = row.get('stream_url')
     stream_name = row.get('stream_name', 'Unknown')
     stream_id = row.get('stream_id', 'Unknown')
@@ -524,7 +525,7 @@ def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, re
 
             # 1. Get Codec, Resolution, FPS from ffprobe
             logging.info(f"  [1/4] Fetching codec/resolution/FPS info...")
-            streams_info = _get_stream_info(url, timeout)
+            streams_info = _get_stream_info(url, timeout, user_agent)
             video_info = next((s for s in streams_info if 'width' in s), None)
             audio_info = next((s for s in streams_info if 'codec_name' in s and 'width' not in s), None)
 
@@ -549,7 +550,7 @@ def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, re
 
             # 2. Get Bitrate and Frame Drop stats from ffmpeg
             logging.info(f"  [2/4] Analyzing bitrate and frame stats...")
-            bitrate, frames_decoded, frames_dropped, status, elapsed = _get_bitrate_and_frame_stats(url, ffmpeg_duration, timeout)
+            bitrate, frames_decoded, frames_dropped, status, elapsed = _get_bitrate_and_frame_stats(url, ffmpeg_duration, timeout, user_agent)
             row['bitrate_kbps'] = bitrate
             row['frames_decoded'] = frames_decoded
             row['frames_dropped'] = frames_dropped
@@ -563,7 +564,7 @@ def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, re
             # 3. Check for interlacing if stream is OK so far
             if status == "OK":
                 logging.info(f"  [3/4] Checking interlaced status...")
-                row['interlaced_status'] = _check_interlaced_status(url, stream_name, idet_frames, timeout)
+                row['interlaced_status'] = _check_interlaced_status(url, stream_name, idet_frames, timeout, user_agent)
                 logging.info(f"    ✓ Interlaced status: {row['interlaced_status']}")
             else:
                 logging.info(f"  [3/4] Skipping interlace check due to previous errors")
@@ -597,7 +598,7 @@ def _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, re
 
     return row
 
-def analyze_streams(config, input_csv, output_csv, fails_csv, ffmpeg_duration, idet_frames, timeout, max_workers, retries, retry_delay):
+def analyze_streams(config, input_csv, output_csv, fails_csv, ffmpeg_duration, idet_frames, timeout, max_workers, retries, retry_delay, user_agent='VLC/3.0.14'):
     """Analyzes streams from a CSV file for various metrics and saves results incrementally."""
     logging.info("="*80)
     logging.info("STARTING STREAM ANALYSIS OPERATION")
@@ -766,7 +767,7 @@ def analyze_streams(config, input_csv, output_csv, fails_csv, ffmpeg_duration, i
                     stream_name = row.get('stream_name', 'Unknown')
                     logging.info(f"\n[{idx}/{total_streams}] ═══ Starting analysis of: {stream_name} ═══")
                     
-                    result_row = _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, retry_delay, config)
+                    result_row = _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, retries, retry_delay, config, user_agent)
                     completed_streams += 1
                     
                     stream_elapsed = (datetime.now() - stream_start_time).total_seconds()
@@ -1200,7 +1201,7 @@ def reorder_streams(config, input_csv):
     logging.info(f"  Errors: {error_count} channels")
     logging.info("="*80)
 
-def retry_failed_streams(config, input_csv, fails_csv, ffmpeg_duration, idet_frames, timeout, max_workers):
+def retry_failed_streams(config, input_csv, fails_csv, ffmpeg_duration, idet_frames, timeout, max_workers, user_agent='VLC/3.0.14'):
     """Retries analysis for streams that previously failed."""
     if not os.path.exists(input_csv):
         logging.error(f"Input file not found: {input_csv}. Cannot retry failed streams.")
@@ -1240,7 +1241,7 @@ def retry_failed_streams(config, input_csv, fails_csv, ffmpeg_duration, idet_fra
     # Process streams synchronously (one at a time)
     for row in failed_streams:
         try:
-            result_row = _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, 0, 0, config)
+            result_row = _analyze_stream_task(row, ffmpeg_duration, idet_frames, timeout, 0, 0, config, user_agent)
             completed_streams += 1
             stream_id = result_row.get('stream_id')
             stream_name = result_row.get('stream_name', 'Unknown')

@@ -92,6 +92,18 @@ function AutomationSettings() {
             [child]: value
           }
         }));
+      } else if (parts.length === 3) {
+        const [parent, child, grandchild] = parts;
+        setStreamCheckerConfig(prev => ({
+          ...prev,
+          [parent]: {
+            ...(prev[parent] || {}),
+            [child]: {
+              ...(prev[parent]?.[child] || {}),
+              [grandchild]: value
+            }
+          }
+        }));
       }
     } else {
       setStreamCheckerConfig(prev => ({
@@ -467,6 +479,17 @@ function AutomationSettings() {
                 margin="normal"
                 helperText="Duration to analyze each stream"
                 inputProps={{ min: 5, max: 120 }}
+              />
+              
+              <TextField
+                label="FFmpeg/FFprobe User Agent"
+                type="text"
+                value={streamCheckerConfig.stream_analysis?.user_agent ?? 'VLC/3.0.14'}
+                onChange={(e) => handleStreamCheckerConfigChange('stream_analysis.user_agent', e.target.value)}
+                fullWidth
+                margin="normal"
+                helperText="User agent string for ffmpeg/ffprobe (for strict stream providers)"
+                inputProps={{ maxLength: 200 }}
               />
               
               <TextField
