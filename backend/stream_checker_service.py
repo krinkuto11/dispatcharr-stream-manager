@@ -99,7 +99,8 @@ class StreamCheckConfig:
             'idet_frames': 500,  # frames to check for interlacing
             'timeout': 30,  # timeout for operations
             'retries': 1,  # retry attempts
-            'retry_delay': 10  # seconds between retries
+            'retry_delay': 10,  # seconds between retries
+            'user_agent': 'VLC/3.0.14'  # user agent for ffmpeg/ffprobe
         },
         'scoring': {
             'weights': {
@@ -1222,7 +1223,8 @@ class StreamCheckerService:
                     timeout=analysis_params.get('timeout', 30),
                     retries=analysis_params.get('retries', 1),
                     retry_delay=analysis_params.get('retry_delay', 10),
-                    config=sorter_config
+                    config=sorter_config,
+                    user_agent=analysis_params.get('user_agent', 'VLC/3.0.14')
                 )
                 
                 # Update stream stats on dispatcharr with ffmpeg-extracted data
@@ -1291,7 +1293,8 @@ class StreamCheckerService:
                         timeout=analysis_params.get('timeout', 30),
                         retries=analysis_params.get('retries', 1),
                         retry_delay=analysis_params.get('retry_delay', 10),
-                        config=sorter_config
+                        config=sorter_config,
+                        user_agent=analysis_params.get('user_agent', 'VLC/3.0.14')
                     )
                     self._update_stream_stats(analyzed)
                     score = self._calculate_stream_score(analyzed)
@@ -1545,6 +1548,20 @@ class StreamCheckerService:
     
     def update_config(self, updates: Dict):
         """Update service configuration and apply changes immediately."""
+        # Sanitize user_agent if present
+        if 'stream_analysis' in updates and 'user_agent' in updates['stream_analysis']:
+            user_agent = updates['stream_analysis']['user_agent']
+            # Sanitize user agent: allow alphanumeric, spaces, dots, slashes, dashes, underscores, parentheses
+            import re
+            sanitized = re.sub(r'[^a-zA-Z0-9 ./_\-()]+', '', str(user_agent))
+            # Limit length to 200 characters
+            sanitized = sanitized[:200].strip()
+            if not sanitized:
+                sanitized = 'VLC/3.0.14'  # Default fallback
+            updates['stream_analysis']['user_agent'] = sanitized
+            if sanitized != user_agent:
+                logging.warning(f"User agent sanitized from '{user_agent}' to '{sanitized}'")
+        
         # Log what's being updated
         config_changes = []
         if 'pipeline_mode' in updates:
