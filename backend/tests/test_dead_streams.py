@@ -19,14 +19,8 @@ from unittest.mock import Mock, patch, MagicMock, call
 import sys
 import os
 
-# Set up temp dir before importing modules
-temp_config_dir = tempfile.mkdtemp()
-os.environ['CONFIG_DIR'] = temp_config_dir
-
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from stream_checker_service import StreamCheckerService
 
 
 class TestDeadStreamDetection(unittest.TestCase):
@@ -35,16 +29,16 @@ class TestDeadStreamDetection(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
-        # Set CONFIG_DIR to temp directory
-        os.environ['CONFIG_DIR'] = self.temp_dir
         
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     def test_detect_dead_stream_zero_resolution(self):
         """Test that streams with resolution 0x0 are detected as dead."""
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         
         stream_data = {
@@ -56,8 +50,10 @@ class TestDeadStreamDetection(unittest.TestCase):
         
         self.assertTrue(service._is_stream_dead(stream_data))
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     def test_detect_dead_stream_zero_bitrate(self):
         """Test that streams with bitrate 0 are detected as dead."""
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         
         stream_data = {
@@ -69,8 +65,10 @@ class TestDeadStreamDetection(unittest.TestCase):
         
         self.assertTrue(service._is_stream_dead(stream_data))
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     def test_detect_dead_stream_both_zero(self):
         """Test that streams with both resolution and bitrate 0 are detected as dead."""
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         
         stream_data = {
@@ -82,8 +80,10 @@ class TestDeadStreamDetection(unittest.TestCase):
         
         self.assertTrue(service._is_stream_dead(stream_data))
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     def test_detect_healthy_stream(self):
         """Test that healthy streams are not detected as dead."""
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         
         stream_data = {
@@ -95,8 +95,10 @@ class TestDeadStreamDetection(unittest.TestCase):
         
         self.assertFalse(service._is_stream_dead(stream_data))
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     def test_detect_dead_stream_partial_zero_resolution(self):
         """Test that streams with partial zero resolution (e.g., 1920x0) are detected as dead."""
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         
         stream_data = {
@@ -118,13 +120,13 @@ class TestDeadStreamTagging(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
-        os.environ['CONFIG_DIR'] = self.temp_dir
         
     def tearDown(self):
         """Clean up test fixtures."""
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     @patch('stream_checker_service.patch_request')
     @patch('stream_checker_service._get_base_url')
     def test_tag_stream_as_dead(self, mock_base_url, mock_patch):
@@ -132,6 +134,7 @@ class TestDeadStreamTagging(unittest.TestCase):
         mock_base_url.return_value = 'http://test.com'
         mock_patch.return_value = Mock()
         
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         result = service._tag_stream_as_dead(1, 'Test Stream')
         
@@ -141,12 +144,14 @@ class TestDeadStreamTagging(unittest.TestCase):
             {'name': '[DEAD] Test Stream'}
         )
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     @patch('stream_checker_service.patch_request')
     @patch('stream_checker_service._get_base_url')
     def test_tag_already_dead_stream(self, mock_base_url, mock_patch):
         """Test that already tagged streams are not re-tagged."""
         mock_base_url.return_value = 'http://test.com'
         
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         result = service._tag_stream_as_dead(1, '[DEAD] Test Stream')
         
@@ -154,6 +159,7 @@ class TestDeadStreamTagging(unittest.TestCase):
         # Should not call patch_request since already tagged
         mock_patch.assert_not_called()
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     @patch('stream_checker_service.patch_request')
     @patch('stream_checker_service._get_base_url')
     def test_untag_dead_stream(self, mock_base_url, mock_patch):
@@ -161,6 +167,7 @@ class TestDeadStreamTagging(unittest.TestCase):
         mock_base_url.return_value = 'http://test.com'
         mock_patch.return_value = Mock()
         
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         result = service._untag_stream_as_dead(1, '[DEAD] Test Stream')
         
@@ -170,12 +177,14 @@ class TestDeadStreamTagging(unittest.TestCase):
             {'name': 'Test Stream'}
         )
     
+    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
     @patch('stream_checker_service.patch_request')
     @patch('stream_checker_service._get_base_url')
     def test_untag_healthy_stream(self, mock_base_url, mock_patch):
         """Test that healthy streams are not untagged."""
         mock_base_url.return_value = 'http://test.com'
         
+        from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
         result = service._untag_stream_as_dead(1, 'Test Stream')
         
@@ -190,7 +199,6 @@ class TestDeadStreamRemoval(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
-        os.environ['CONFIG_DIR'] = self.temp_dir
         
     def tearDown(self):
         """Clean up test fixtures."""
