@@ -620,6 +620,12 @@ class AutomatedStreamManager:
                 if not stream_name or not stream_id:
                     continue
                 
+                # Skip streams marked as [DEAD] during matching
+                # Dead streams should not be added to channels during subsequent matches
+                if stream_name.startswith('[DEAD]'):
+                    logging.debug(f"Skipping dead stream {stream_id}: {stream_name}")
+                    continue
+                
                 # Find matching channels
                 matching_channels = self.regex_matcher.match_stream_to_channels(stream_name)
                 
