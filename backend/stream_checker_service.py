@@ -1044,6 +1044,108 @@ class StreamCheckerService:
         except Exception as e:
             logging.error(f"Failed to queue all channels: {e}")
     
+    def _is_stream_dead(self, stream_data: Dict) -> bool:
+        """Check if a stream should be considered dead based on analysis results.
+        
+        A stream is dead if:
+        - Resolution is '0x0' or contains 0 in width or height
+        - Bitrate is 0 or None
+        
+        Args:
+            stream_data: Analyzed stream data dictionary
+            
+        Returns:
+            bool: True if stream is dead, False otherwise
+        """
+        # Check resolution
+        resolution = stream_data.get('resolution', '')
+        if resolution and resolution != 'N/A':
+            resolution_str = str(resolution)
+            # Check if resolution is exactly 0x0 or starts/ends with 0
+            if resolution_str == '0x0':
+                return True
+            # Check if width or height is 0 (e.g., "0x1080" or "1920x0")
+            if 'x' in resolution_str:
+                try:
+                    parts = resolution_str.split('x')
+                    if len(parts) == 2:
+                        width, height = int(parts[0]), int(parts[1])
+                        if width == 0 or height == 0:
+                            return True
+                except (ValueError, IndexError):
+                    pass
+        
+        # Check bitrate
+        bitrate = stream_data.get('bitrate_kbps', 0)
+        if bitrate in [0, None, 'N/A'] or (isinstance(bitrate, (int, float)) and bitrate == 0):
+            return True
+        
+        return False
+    
+    def _tag_stream_as_dead(self, stream_id: int, stream_name: str) -> bool:
+        """Tag a stream as dead by adding [DEAD] prefix to its name.
+        
+        Args:
+            stream_id: The stream ID to tag
+            stream_name: Current name of the stream
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        base_url = _get_base_url()
+        if not base_url:
+            return False
+        
+        # Check if already tagged
+        if stream_name.startswith('[DEAD]'):
+            logging.debug(f"Stream {stream_id} already tagged as DEAD")
+            return True
+        
+        # Add [DEAD] prefix
+        new_name = f"[DEAD] {stream_name}"
+        stream_url = f"{base_url}/api/channels/streams/{int(stream_id)}/"
+        
+        try:
+            patch_payload = {"name": new_name}
+            logging.info(f"Tagging stream {stream_id} as DEAD: '{stream_name}' -> '{new_name}'")
+            patch_request(stream_url, patch_payload)
+            return True
+        except Exception as e:
+            logging.error(f"Error tagging stream {stream_id} as dead: {e}")
+            return False
+    
+    def _untag_stream_as_dead(self, stream_id: int, stream_name: str) -> bool:
+        """Remove [DEAD] prefix from a stream name if it was revived.
+        
+        Args:
+            stream_id: The stream ID to untag
+            stream_name: Current name of the stream (with [DEAD] prefix)
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        base_url = _get_base_url()
+        if not base_url:
+            return False
+        
+        # Check if tagged
+        if not stream_name.startswith('[DEAD]'):
+            logging.debug(f"Stream {stream_id} is not tagged as DEAD")
+            return True
+        
+        # Remove [DEAD] prefix
+        new_name = stream_name.replace('[DEAD]', '').strip()
+        stream_url = f"{base_url}/api/channels/streams/{int(stream_id)}/"
+        
+        try:
+            patch_payload = {"name": new_name}
+            logging.info(f"Untagging stream {stream_id}: '{stream_name}' -> '{new_name}' (revived)")
+            patch_request(stream_url, patch_payload)
+            return True
+        except Exception as e:
+            logging.error(f"Error untagging stream {stream_id}: {e}")
+            return False
+    
     def _update_stream_stats(self, stream_data: Dict) -> bool:
         """Update stream stats for a single stream on the server."""
         base_url = _get_base_url()
@@ -1191,6 +1293,8 @@ class StreamCheckerService:
             
             # Analyze new/unchecked streams
             analyzed_streams = []
+            dead_stream_ids = []
+            revived_stream_ids = []
             total_streams = len(streams_to_check)
             
             for idx, stream in enumerate(streams_to_check, 1):
@@ -1229,6 +1333,22 @@ class StreamCheckerService:
                 
                 # Update stream stats on dispatcharr with ffmpeg-extracted data
                 self._update_stream_stats(analyzed)
+                
+                # Check if stream is dead (resolution=0 or bitrate=0)
+                is_dead = self._is_stream_dead(analyzed)
+                stream_name = stream.get('name', 'Unknown')
+                was_dead = stream_name.startswith('[DEAD]')
+                
+                if is_dead and not was_dead:
+                    # Tag as dead
+                    self._tag_stream_as_dead(stream['id'], stream_name)
+                    dead_stream_ids.append(stream['id'])
+                    logging.warning(f"Stream {stream['id']} detected as DEAD: {stream_name}")
+                elif not is_dead and was_dead:
+                    # Stream was revived!
+                    self._untag_stream_as_dead(stream['id'], stream_name)
+                    revived_stream_ids.append(stream['id'])
+                    logging.info(f"Stream {stream['id']} REVIVED: {stream_name}")
                 
                 # Calculate score
                 score = self._calculate_stream_score(analyzed)
@@ -1312,6 +1432,17 @@ class StreamCheckerService:
                 step_detail='Sorting streams by quality score'
             )
             analyzed_streams.sort(key=lambda x: x.get('score', 0), reverse=True)
+            
+            # Remove dead streams from the channel (unless it's a force check/global check)
+            # During global checks, we want to give dead streams a chance to be revived
+            if dead_stream_ids and not force_check:
+                logging.info(f"Removing {len(dead_stream_ids)} dead streams from channel {channel_name}")
+                analyzed_streams = [s for s in analyzed_streams if s['stream_id'] not in dead_stream_ids]
+            elif dead_stream_ids and force_check:
+                logging.info(f"Global check mode: keeping {len(dead_stream_ids)} dead streams to check for revival")
+            
+            if revived_stream_ids:
+                logging.info(f"{len(revived_stream_ids)} streams were revived in channel {channel_name}")
             
             # Update channel with reordered streams
             self.progress.update(

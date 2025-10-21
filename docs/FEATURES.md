@@ -70,6 +70,15 @@ Multi-factor analysis of stream quality:
 - Queue-based processing
 - Real-time progress tracking
 
+### Dead Stream Detection and Management
+Automatically identifies and manages non-functional streams:
+- **Detection**: Streams with resolution=0 or bitrate=0 are marked as dead
+- **Tagging**: Dead streams are prefixed with `[DEAD]` in Dispatcharr
+- **Removal**: Dead streams are removed from channels during regular checks
+- **Revival Check**: During global actions, dead streams are re-checked for revival
+- **Matching Exclusion**: Dead streams are not assigned to channels during stream matching
+- **Pipeline-Aware**: Only operates in pipelines with stream checking enabled (1, 1.5, 2.5, 3)
+
 ## User Interface
 
 ### Dashboard

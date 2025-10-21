@@ -389,6 +389,89 @@ Monitor real-time statistics and progress:
 - Manually trigger Global Action
 - Monitor queue status and check progress
 
+## Dead Stream Detection and Management
+
+StreamFlow automatically detects and manages non-functional streams to maintain channel quality.
+
+### How Dead Stream Detection Works
+
+**Detection Criteria:**
+A stream is considered "dead" if during quality analysis:
+- Resolution is `0x0` or contains a 0 dimension (e.g., `1920x0` or `0x1080`)
+- Bitrate is 0 kbps or null
+
+**Tagging:**
+When a dead stream is detected, it is automatically tagged with a `[DEAD]` prefix in Dispatcharr:
+- Original: `"CNN HD"`
+- Tagged: `"[DEAD] CNN HD"`
+
+### Pipeline-Specific Behavior
+
+#### Pipelines 1 and 1.5 (Regular Checks)
+- Dead streams detected during regular channel checks
+- Immediately tagged with `[DEAD]` prefix
+- **Removed from channels** to maintain quality
+- Will not be re-added during subsequent stream matching
+
+#### Pipelines 2 and 2.5 (No Regular Checking)
+- Pipeline 2: No stream checking, so no dead stream detection
+- Pipeline 2.5: Dead streams only detected during scheduled global actions
+
+#### Pipeline 3 (Scheduled Only)
+- Dead streams only detected during scheduled global actions
+
+### Revival During Global Actions
+
+During global actions (force check), dead streams are given a chance to revive:
+1. All streams (including dead ones) are re-analyzed
+2. If a dead stream is found to be working:
+   - The `[DEAD]` prefix is removed
+   - Stream is restored to normal status
+   - Stream can be matched to channels again
+3. If still dead, the tag remains
+
+**Example Revival:**
+```
+Before global check: "[DEAD] CNN HD" (resolution: 0x0, bitrate: 0)
+After global check:  "CNN HD" (resolution: 1920x1080, bitrate: 5000)
+```
+
+### Stream Matching Exclusion
+
+Dead streams are automatically excluded from stream discovery:
+- When regex patterns are matched, streams with `[DEAD]` prefix are skipped
+- Prevents dead streams from being added to new channels
+- Ensures only functional streams are assigned
+
+### Benefits
+
+1. **Automatic Cleanup**: Channels stay clean without manual intervention
+2. **Quality Maintenance**: Only working streams remain in channels
+3. **Efficient Checking**: Dead streams don't waste resources during regular checks
+4. **Revival Opportunity**: Streams can recover during global actions
+5. **Clear Identification**: `[DEAD]` tag makes status immediately visible
+
+### Configuration
+
+No special configuration required. Dead stream detection is:
+- **Enabled by default** in all pipelines with stream checking
+- **Automatic** - no manual intervention needed
+- **Transparent** - all actions logged in changelog
+
+### Monitoring
+
+Dead stream activity is logged in the changelog:
+- Detection and tagging events
+- Removal from channels
+- Revival events during global actions
+
+You can monitor dead streams via:
+- Changelog page in web UI
+- Dispatcharr stream list (search for `[DEAD]`)
+- Stream checker logs
+
+---
+
 ## Future Enhancements
 
 Potential future improvements:
@@ -396,3 +479,4 @@ Potential future improvements:
 - Custom pipeline schedules per channel
 - Analytics dashboard showing check frequency and patterns
 - Dynamic pipeline adjustment based on connection speed
+- Dead stream statistics and reporting dashboard
