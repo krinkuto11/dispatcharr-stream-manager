@@ -1094,6 +1094,7 @@ class StreamCheckerService:
         """
         base_url = _get_base_url()
         if not base_url:
+            logging.error("Cannot tag stream as dead: DISPATCHARR_BASE_URL not set")
             return False
         
         # Check if already tagged
@@ -1107,11 +1108,18 @@ class StreamCheckerService:
         
         try:
             patch_payload = {"name": new_name}
-            logging.info(f"Tagging stream {stream_id} as DEAD: '{stream_name}' -> '{new_name}'")
-            patch_request(stream_url, patch_payload)
-            return True
+            logging.warning(f"🔴 TAGGING DEAD STREAM {stream_id}: '{stream_name}' -> '{new_name}'")
+            response = patch_request(stream_url, patch_payload)
+            
+            # Verify the update was successful
+            if response.status_code in [200, 204]:
+                logging.info(f"✓ Successfully tagged stream {stream_id} as DEAD")
+                return True
+            else:
+                logging.error(f"Unexpected response code {response.status_code} when tagging stream {stream_id}")
+                return False
         except Exception as e:
-            logging.error(f"Error tagging stream {stream_id} as dead: {e}")
+            logging.error(f"❌ Error tagging stream {stream_id} as dead: {e}")
             return False
     
     def _untag_stream_as_dead(self, stream_id: int, stream_name: str) -> bool:
@@ -1126,6 +1134,7 @@ class StreamCheckerService:
         """
         base_url = _get_base_url()
         if not base_url:
+            logging.error("Cannot untag stream: DISPATCHARR_BASE_URL not set")
             return False
         
         # Check if tagged
@@ -1139,11 +1148,18 @@ class StreamCheckerService:
         
         try:
             patch_payload = {"name": new_name}
-            logging.info(f"Untagging stream {stream_id}: '{stream_name}' -> '{new_name}' (revived)")
-            patch_request(stream_url, patch_payload)
-            return True
+            logging.warning(f"🟢 REVIVING STREAM {stream_id}: '{stream_name}' -> '{new_name}'")
+            response = patch_request(stream_url, patch_payload)
+            
+            # Verify the update was successful
+            if response.status_code in [200, 204]:
+                logging.info(f"✓ Successfully untagged stream {stream_id} (revived)")
+                return True
+            else:
+                logging.error(f"Unexpected response code {response.status_code} when untagging stream {stream_id}")
+                return False
         except Exception as e:
-            logging.error(f"Error untagging stream {stream_id}: {e}")
+            logging.error(f"❌ Error untagging stream {stream_id}: {e}")
             return False
     
     def _update_stream_stats(self, stream_data: Dict) -> bool:
@@ -1343,11 +1359,15 @@ class StreamCheckerService:
                     # Tag as dead
                     self._tag_stream_as_dead(stream['id'], stream_name)
                     dead_stream_ids.append(stream['id'])
+                    # Update the stream_name in analyzed data to reflect the [DEAD] tag
+                    analyzed['stream_name'] = f"[DEAD] {stream_name}"
                     logging.warning(f"Stream {stream['id']} detected as DEAD: {stream_name}")
                 elif not is_dead and was_dead:
                     # Stream was revived!
                     self._untag_stream_as_dead(stream['id'], stream_name)
                     revived_stream_ids.append(stream['id'])
+                    # Update the stream_name in analyzed data to remove the [DEAD] tag
+                    analyzed['stream_name'] = stream_name.replace('[DEAD]', '').strip()
                     logging.info(f"Stream {stream['id']} REVIVED: {stream_name}")
                 
                 # Calculate score
