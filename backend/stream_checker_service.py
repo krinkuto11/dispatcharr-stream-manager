@@ -1554,6 +1554,10 @@ class StreamCheckerService:
     
     def _calculate_stream_score(self, stream_data: Dict) -> float:
         """Calculate a quality score for a stream based on analysis."""
+        # Dead streams always get a score of 0
+        if self._is_stream_dead(stream_data):
+            return 0.0
+        
         weights = self.config.get('scoring.weights', {})
         score = 0.0
         
