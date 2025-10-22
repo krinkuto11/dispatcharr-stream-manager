@@ -465,7 +465,11 @@ function Changelog() {
                   <Card sx={{ bgcolor: 'background.default' }}>
                     <CardContent>
                       <List dense>
-                        {streamStats.map((stream, idx) => (
+                        {streamStats.map((stream, idx) => {
+                          const isDead = stream.stream_name && stream.stream_name.startsWith('[DEAD]');
+                          const displayName = isDead ? stream.stream_name.replace('[DEAD]', '').trim() : stream.stream_name;
+                          
+                          return (
                           <ListItem key={idx} sx={{ py: 1, flexDirection: 'column', alignItems: 'flex-start' }}>
                             <Box display="flex" alignItems="center" gap={1} width="100%">
                               <Chip 
@@ -474,19 +478,37 @@ function Changelog() {
                                 color="primary"
                                 sx={{ minWidth: 40 }}
                               />
-                              <Typography variant="body2" fontWeight="bold" flex={1}>
-                                {stream.stream_name}
+                              {isDead && (
+                                <Chip 
+                                  label="DEAD"
+                                  size="small"
+                                  color="error"
+                                  sx={{ fontWeight: 'bold' }}
+                                />
+                              )}
+                              <Typography 
+                                variant="body2" 
+                                fontWeight="bold" 
+                                flex={1}
+                                color={isDead ? 'error.main' : 'text.primary'}
+                              >
+                                {displayName}
                               </Typography>
-                              {stream.score && (
+                              {stream.score !== undefined && (
                                 <Chip 
                                   label={`Score: ${stream.score}`}
                                   size="small"
-                                  color={stream.score >= 0.7 ? 'success' : stream.score >= 0.5 ? 'warning' : 'default'}
+                                  color={
+                                    stream.score === 0 ? 'error' : 
+                                    stream.score >= 0.7 ? 'success' : 
+                                    stream.score >= 0.5 ? 'warning' : 
+                                    'default'
+                                  }
                                 />
                               )}
                             </Box>
                             <Box sx={{ pl: 6, pt: 0.5 }}>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="caption" color={isDead ? 'error' : 'text.secondary'}>
                                 {stream.resolution && `${stream.resolution}`}
                                 {stream.fps && ` @ ${stream.fps} fps`}
                                 {stream.video_codec && ` | ${stream.video_codec}`}
@@ -495,7 +517,8 @@ function Changelog() {
                               </Typography>
                             </Box>
                           </ListItem>
-                        ))}
+                          );
+                        })}
                       </List>
                       {details.total_streams > streamStats.length && (
                         <Typography variant="caption" color="text.secondary" sx={{ pl: 2, pt: 1, display: 'block' }}>
