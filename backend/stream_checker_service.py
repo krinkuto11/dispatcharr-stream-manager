@@ -1410,6 +1410,20 @@ class StreamCheckerService:
                         'status': 'OK'  # Assume OK for previously checked streams
                     }
                     
+                    # Check if this cached stream is dead and add to dead_stream_ids
+                    stream_name = stream.get('name', 'Unknown')
+                    is_dead = self._is_stream_dead(analyzed)
+                    was_dead = stream_name.startswith('[DEAD]')
+                    
+                    # If stream is dead (either was already tagged or is detected as dead), track it
+                    if is_dead or was_dead:
+                        dead_stream_ids.append(stream['id'])
+                        if not was_dead:
+                            # If it wasn't tagged but is dead, tag it now
+                            self._tag_stream_as_dead(stream['id'], stream_name)
+                            analyzed['stream_name'] = f"[DEAD] {stream_name}"
+                            logging.warning(f"Cached stream {stream['id']} detected as DEAD: {stream_name}")
+                    
                     # Recalculate score from cached data
                     score = self._calculate_stream_score(analyzed)
                     analyzed['score'] = score
@@ -1456,7 +1470,12 @@ class StreamCheckerService:
             # Remove dead streams from the channel (unless it's a force check/global check)
             # During global checks, we want to give dead streams a chance to be revived
             if dead_stream_ids and not force_check:
-                logging.info(f"Removing {len(dead_stream_ids)} dead streams from channel {channel_name}")
+                logging.warning(f"🔴 Removing {len(dead_stream_ids)} dead streams from channel {channel_name}")
+                # Log which streams are being removed
+                for stream_id in dead_stream_ids:
+                    dead_stream = next((s for s in analyzed_streams if s['stream_id'] == stream_id), None)
+                    if dead_stream:
+                        logging.info(f"  - Removing dead stream {stream_id}: {dead_stream.get('stream_name', 'Unknown')}")
                 analyzed_streams = [s for s in analyzed_streams if s['stream_id'] not in dead_stream_ids]
             elif dead_stream_ids and force_check:
                 logging.info(f"Global check mode: keeping {len(dead_stream_ids)} dead streams to check for revival")
