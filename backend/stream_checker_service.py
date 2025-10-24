@@ -1356,19 +1356,23 @@ class StreamCheckerService:
                 was_dead = stream_name.startswith('[DEAD]')
                 
                 if is_dead and not was_dead:
-                    # Tag as dead
-                    self._tag_stream_as_dead(stream['id'], stream_name)
-                    dead_stream_ids.append(stream['id'])
-                    # Update the stream_name in analyzed data to reflect the [DEAD] tag
-                    analyzed['stream_name'] = f"[DEAD] {stream_name}"
-                    logging.warning(f"Stream {stream['id']} detected as DEAD: {stream_name}")
+                    # Tag as dead - only add to dead_stream_ids if tagging succeeds
+                    if self._tag_stream_as_dead(stream['id'], stream_name):
+                        dead_stream_ids.append(stream['id'])
+                        # Update the stream_name in analyzed data to reflect the [DEAD] tag
+                        analyzed['stream_name'] = f"[DEAD] {stream_name}"
+                        logging.warning(f"Stream {stream['id']} detected as DEAD: {stream_name}")
+                    else:
+                        logging.error(f"Failed to tag stream {stream['id']} as DEAD, will not remove from channel")
                 elif not is_dead and was_dead:
-                    # Stream was revived!
-                    self._untag_stream_as_dead(stream['id'], stream_name)
-                    revived_stream_ids.append(stream['id'])
-                    # Update the stream_name in analyzed data to remove the [DEAD] tag
-                    analyzed['stream_name'] = stream_name.replace('[DEAD]', '').strip()
-                    logging.info(f"Stream {stream['id']} REVIVED: {stream_name}")
+                    # Stream was revived - only add to revived_stream_ids if untagging succeeds
+                    if self._untag_stream_as_dead(stream['id'], stream_name):
+                        revived_stream_ids.append(stream['id'])
+                        # Update the stream_name in analyzed data to remove the [DEAD] tag
+                        analyzed['stream_name'] = stream_name.replace('[DEAD]', '').strip()
+                        logging.info(f"Stream {stream['id']} REVIVED: {stream_name}")
+                    else:
+                        logging.error(f"Failed to untag stream {stream['id']}, keeping [DEAD] prefix")
                 
                 # Calculate score
                 score = self._calculate_stream_score(analyzed)
@@ -1417,12 +1421,19 @@ class StreamCheckerService:
                     
                     # If stream is dead (either was already tagged or is detected as dead), track it
                     if is_dead or was_dead:
-                        dead_stream_ids.append(stream['id'])
-                        if not was_dead:
+                        # Only add to dead_stream_ids if either:
+                        # 1. Stream was already tagged (safe to remove)
+                        # 2. Stream is newly detected as dead AND tagging succeeds
+                        if was_dead:
+                            dead_stream_ids.append(stream['id'])
+                        elif not was_dead:
                             # If it wasn't tagged but is dead, tag it now
-                            self._tag_stream_as_dead(stream['id'], stream_name)
-                            analyzed['stream_name'] = f"[DEAD] {stream_name}"
-                            logging.warning(f"Cached stream {stream['id']} detected as DEAD: {stream_name}")
+                            if self._tag_stream_as_dead(stream['id'], stream_name):
+                                dead_stream_ids.append(stream['id'])
+                                analyzed['stream_name'] = f"[DEAD] {stream_name}"
+                                logging.warning(f"Cached stream {stream['id']} detected as DEAD: {stream_name}")
+                            else:
+                                logging.error(f"Failed to tag cached stream {stream['id']} as DEAD, will not remove from channel")
                     
                     # Recalculate score from cached data
                     score = self._calculate_stream_score(analyzed)
