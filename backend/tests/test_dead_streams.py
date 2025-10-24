@@ -132,7 +132,9 @@ class TestDeadStreamTagging(unittest.TestCase):
     def test_tag_stream_as_dead(self, mock_base_url, mock_patch):
         """Test tagging a stream as dead."""
         mock_base_url.return_value = 'http://test.com'
-        mock_patch.return_value = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_patch.return_value = mock_response
         
         from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
@@ -165,7 +167,9 @@ class TestDeadStreamTagging(unittest.TestCase):
     def test_untag_dead_stream(self, mock_base_url, mock_patch):
         """Test untagging a revived stream."""
         mock_base_url.return_value = 'http://test.com'
-        mock_patch.return_value = Mock()
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_patch.return_value = mock_response
         
         from stream_checker_service import StreamCheckerService
         service = StreamCheckerService()
