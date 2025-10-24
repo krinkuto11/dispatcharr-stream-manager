@@ -79,7 +79,7 @@ class DeadStreamsTracker:
                     'marked_dead_at': datetime.now().isoformat(),
                     'url': stream_url
                 }
-            self._save_dead_streams()
+                self._save_dead_streams()
             logging.warning(f"🔴 MARKED STREAM AS DEAD: {stream_name} (URL: {stream_url})")
             return True
         except Exception as e:
