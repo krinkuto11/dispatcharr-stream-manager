@@ -28,6 +28,13 @@ from api_utils import (
     _get_base_url
 )
 
+# Import DeadStreamsTracker
+try:
+    from dead_streams_tracker import DeadStreamsTracker
+    DEAD_STREAMS_TRACKER_AVAILABLE = True
+except ImportError:
+    DEAD_STREAMS_TRACKER_AVAILABLE = False
+    logging.warning("DeadStreamsTracker not available. Dead stream filtering will be disabled.")
 
 
 # Custom logging filter to exclude HTTP-related logs
@@ -287,6 +294,15 @@ class AutomatedStreamManager:
         self.changelog = ChangelogManager()
         self.regex_matcher = RegexChannelMatcher()
         
+        # Initialize dead streams tracker
+        self.dead_streams_tracker = None
+        if DEAD_STREAMS_TRACKER_AVAILABLE:
+            try:
+                self.dead_streams_tracker = DeadStreamsTracker()
+                logging.info("Dead streams tracker initialized")
+            except Exception as e:
+                logging.warning(f"Failed to initialize dead streams tracker: {e}")
+        
         self.running = False
         self.last_playlist_update = None
     
@@ -437,6 +453,18 @@ class AutomatedStreamManager:
                 })
             
             logging.info(f"M3U playlist refresh completed successfully. Added: {len(added_streams)}, Removed: {len(removed_streams)}")
+            
+            # Clean up dead streams that are no longer in the playlist
+            if self.dead_streams_tracker:
+                try:
+                    current_stream_urls = {s.get('url', '') for s in streams_after if isinstance(s, dict) and s.get('url')}
+                    # Remove empty URLs from the set
+                    current_stream_urls.discard('')
+                    cleaned_count = self.dead_streams_tracker.cleanup_removed_streams(current_stream_urls)
+                    if cleaned_count > 0:
+                        logging.info(f"Dead streams cleanup: removed {cleaned_count} stream(s) no longer in playlist")
+                except Exception as cleanup_error:
+                    logging.error(f"Error during dead streams cleanup: {cleanup_error}")
             
             # Mark channels for stream quality checking ONLY if streams were added or removed
             # This prevents unnecessary marking of all channels on every refresh
@@ -620,10 +648,11 @@ class AutomatedStreamManager:
                 if not stream_name or not stream_id:
                     continue
                 
-                # Skip streams marked as [DEAD] during matching
+                # Skip streams marked as dead in the tracker
                 # Dead streams should not be added to channels during subsequent matches
-                if stream_name.startswith('[DEAD]'):
-                    logging.debug(f"Skipping dead stream {stream_id}: {stream_name}")
+                stream_url = stream.get('url', '')
+                if self.dead_streams_tracker and self.dead_streams_tracker.is_dead(stream_url):
+                    logging.debug(f"Skipping dead stream {stream_id}: {stream_name} (URL: {stream_url})")
                     continue
                 
                 # Find matching channels
