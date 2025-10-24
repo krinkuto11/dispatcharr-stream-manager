@@ -129,3 +129,37 @@ class DeadStreamsTracker:
         """
         with self.lock:
             return self.dead_streams.copy()
+    
+    def cleanup_removed_streams(self, current_stream_urls: set) -> int:
+        """Remove dead streams that are no longer in the playlist.
+        
+        Args:
+            current_stream_urls: Set of URLs for streams currently in the playlist
+            
+        Returns:
+            int: Number of dead streams removed from tracking
+        """
+        removed_count = 0
+        try:
+            with self.lock:
+                # Find dead streams that are no longer in the current playlist
+                dead_urls_to_remove = []
+                for dead_url in self.dead_streams.keys():
+                    if dead_url not in current_stream_urls:
+                        dead_urls_to_remove.append(dead_url)
+                
+                # Remove them from tracking
+                for url in dead_urls_to_remove:
+                    stream_info = self.dead_streams.pop(url)
+                    removed_count += 1
+                    logging.info(f"🗑️ Removed dead stream from tracking (no longer in playlist): {stream_info.get('stream_name', 'Unknown')} (URL: {url})")
+                
+                # Save if we removed any
+                if removed_count > 0:
+                    self._save_dead_streams()
+                    logging.info(f"Cleaned up {removed_count} dead stream(s) that are no longer in playlist")
+            
+            return removed_count
+        except Exception as e:
+            logging.error(f"❌ Error cleaning up removed streams: {e}")
+            return 0

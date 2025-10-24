@@ -229,6 +229,75 @@ class TestDeadStreamRevival(unittest.TestCase):
         pass
 
 
+class TestDeadStreamCleanup(unittest.TestCase):
+    """Test cleanup of dead streams that are no longer in playlist."""
+    
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_cleanup_removed_streams(self):
+        """Test that dead streams no longer in playlist are cleaned up."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
+        
+        # Mark three streams as dead
+        tracker.mark_as_dead('http://example.com/stream1.m3u8', 1, 'Stream 1')
+        tracker.mark_as_dead('http://example.com/stream2.m3u8', 2, 'Stream 2')
+        tracker.mark_as_dead('http://example.com/stream3.m3u8', 3, 'Stream 3')
+        
+        # Verify all three are marked as dead
+        self.assertEqual(len(tracker.get_dead_streams()), 3)
+        
+        # Simulate playlist refresh where only stream2 and stream3 are still present
+        current_urls = {'http://example.com/stream2.m3u8', 'http://example.com/stream3.m3u8'}
+        removed_count = tracker.cleanup_removed_streams(current_urls)
+        
+        # Verify that stream1 was removed from tracking
+        self.assertEqual(removed_count, 1)
+        self.assertEqual(len(tracker.get_dead_streams()), 2)
+        self.assertFalse(tracker.is_dead('http://example.com/stream1.m3u8'))
+        self.assertTrue(tracker.is_dead('http://example.com/stream2.m3u8'))
+        self.assertTrue(tracker.is_dead('http://example.com/stream3.m3u8'))
+    
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_cleanup_all_removed_streams(self):
+        """Test cleanup when all dead streams are removed from playlist."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
+        
+        # Mark two streams as dead
+        tracker.mark_as_dead('http://example.com/stream1.m3u8', 1, 'Stream 1')
+        tracker.mark_as_dead('http://example.com/stream2.m3u8', 2, 'Stream 2')
+        
+        # Simulate playlist refresh where none of the dead streams are present
+        current_urls = {'http://example.com/stream4.m3u8', 'http://example.com/stream5.m3u8'}
+        removed_count = tracker.cleanup_removed_streams(current_urls)
+        
+        # Verify all dead streams were removed
+        self.assertEqual(removed_count, 2)
+        self.assertEqual(len(tracker.get_dead_streams()), 0)
+    
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_cleanup_no_removals_needed(self):
+        """Test cleanup when all dead streams are still in playlist."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
+        
+        # Mark two streams as dead
+        tracker.mark_as_dead('http://example.com/stream1.m3u8', 1, 'Stream 1')
+        tracker.mark_as_dead('http://example.com/stream2.m3u8', 2, 'Stream 2')
+        
+        # Simulate playlist refresh where all dead streams are still present
+        current_urls = {
+            'http://example.com/stream1.m3u8',
+            'http://example.com/stream2.m3u8',
+            'http://example.com/stream3.m3u8'
+        }
+        removed_count = tracker.cleanup_removed_streams(current_urls)
+        
+        # Verify no streams were removed
+        self.assertEqual(removed_count, 0)
+        self.assertEqual(len(tracker.get_dead_streams()), 2)
+
+
 if __name__ == '__main__':
     # Run tests with verbose output
     unittest.main(verbosity=2)

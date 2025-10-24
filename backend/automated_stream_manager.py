@@ -454,6 +454,18 @@ class AutomatedStreamManager:
             
             logging.info(f"M3U playlist refresh completed successfully. Added: {len(added_streams)}, Removed: {len(removed_streams)}")
             
+            # Clean up dead streams that are no longer in the playlist
+            if self.dead_streams_tracker:
+                try:
+                    current_stream_urls = {s.get('url', '') for s in streams_after if isinstance(s, dict) and s.get('url')}
+                    # Remove empty URLs from the set
+                    current_stream_urls.discard('')
+                    cleaned_count = self.dead_streams_tracker.cleanup_removed_streams(current_stream_urls)
+                    if cleaned_count > 0:
+                        logging.info(f"Dead streams cleanup: removed {cleaned_count} stream(s) no longer in playlist")
+                except Exception as cleanup_error:
+                    logging.error(f"Error during dead streams cleanup: {cleanup_error}")
+            
             # Mark channels for stream quality checking ONLY if streams were added or removed
             # This prevents unnecessary marking of all channels on every refresh
             if len(added_streams) > 0 or len(removed_streams) > 0:
