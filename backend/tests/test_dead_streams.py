@@ -126,75 +126,55 @@ class TestDeadStreamTagging(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
-    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
-    @patch('stream_checker_service.patch_request')
-    @patch('stream_checker_service._get_base_url')
-    def test_tag_stream_as_dead(self, mock_base_url, mock_patch):
-        """Test tagging a stream as dead."""
-        mock_base_url.return_value = 'http://test.com'
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_patch.return_value = mock_response
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_mark_stream_as_dead(self):
+        """Test marking a stream as dead in tracker."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
         
-        from stream_checker_service import StreamCheckerService
-        service = StreamCheckerService()
-        result = service._tag_stream_as_dead(1, 'Test Stream')
+        stream_url = 'http://example.com/stream1.m3u8'
+        result = tracker.mark_as_dead(stream_url, 1, 'Test Stream')
         
         self.assertTrue(result)
-        mock_patch.assert_called_once_with(
-            'http://test.com/api/channels/streams/1/',
-            {'name': '[DEAD] Test Stream'}
-        )
+        self.assertTrue(tracker.is_dead(stream_url))
     
-    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
-    @patch('stream_checker_service.patch_request')
-    @patch('stream_checker_service._get_base_url')
-    def test_tag_already_dead_stream(self, mock_base_url, mock_patch):
-        """Test that already tagged streams are not re-tagged."""
-        mock_base_url.return_value = 'http://test.com'
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_mark_already_dead_stream(self):
+        """Test that already marked streams can be marked again."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
         
-        from stream_checker_service import StreamCheckerService
-        service = StreamCheckerService()
-        result = service._tag_stream_as_dead(1, '[DEAD] Test Stream')
+        stream_url = 'http://example.com/stream1.m3u8'
+        tracker.mark_as_dead(stream_url, 1, 'Test Stream')
+        result = tracker.mark_as_dead(stream_url, 1, 'Test Stream')
         
         self.assertTrue(result)
-        # Should not call patch_request since already tagged
-        mock_patch.assert_not_called()
+        self.assertTrue(tracker.is_dead(stream_url))
     
-    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
-    @patch('stream_checker_service.patch_request')
-    @patch('stream_checker_service._get_base_url')
-    def test_untag_dead_stream(self, mock_base_url, mock_patch):
-        """Test untagging a revived stream."""
-        mock_base_url.return_value = 'http://test.com'
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_patch.return_value = mock_response
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_mark_stream_as_alive(self):
+        """Test marking a revived stream as alive."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
         
-        from stream_checker_service import StreamCheckerService
-        service = StreamCheckerService()
-        result = service._untag_stream_as_dead(1, '[DEAD] Test Stream')
+        stream_url = 'http://example.com/stream1.m3u8'
+        tracker.mark_as_dead(stream_url, 1, 'Test Stream')
+        result = tracker.mark_as_alive(stream_url)
         
         self.assertTrue(result)
-        mock_patch.assert_called_once_with(
-            'http://test.com/api/channels/streams/1/',
-            {'name': 'Test Stream'}
-        )
+        self.assertFalse(tracker.is_dead(stream_url))
     
-    @patch('stream_checker_service.CONFIG_DIR', Path(tempfile.mkdtemp()))
-    @patch('stream_checker_service.patch_request')
-    @patch('stream_checker_service._get_base_url')
-    def test_untag_healthy_stream(self, mock_base_url, mock_patch):
-        """Test that healthy streams are not untagged."""
-        mock_base_url.return_value = 'http://test.com'
+    @patch('dead_streams_tracker.CONFIG_DIR', Path(tempfile.mkdtemp()))
+    def test_mark_healthy_stream_as_alive(self):
+        """Test that marking a healthy stream as alive succeeds."""
+        from dead_streams_tracker import DeadStreamsTracker
+        tracker = DeadStreamsTracker()
         
-        from stream_checker_service import StreamCheckerService
-        service = StreamCheckerService()
-        result = service._untag_stream_as_dead(1, 'Test Stream')
+        stream_url = 'http://example.com/stream1.m3u8'
+        result = tracker.mark_as_alive(stream_url)
         
         self.assertTrue(result)
-        # Should not call patch_request since not tagged
-        mock_patch.assert_not_called()
+        self.assertFalse(tracker.is_dead(stream_url))
 
 
 class TestDeadStreamRemoval(unittest.TestCase):

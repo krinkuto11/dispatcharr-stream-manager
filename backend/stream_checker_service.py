@@ -39,6 +39,9 @@ from api_utils import (
     patch_request
 )
 
+# Import dead streams tracker
+from dead_streams_tracker import DeadStreamsTracker
+
 # Import changelog manager
 try:
     from automated_stream_manager import ChangelogManager
@@ -715,6 +718,7 @@ class StreamCheckerService:
             max_size=self.config.get('queue.max_size', 1000)
         )
         self.progress = StreamCheckerProgress()
+        self.dead_streams_tracker = DeadStreamsTracker()
         
         # Initialize changelog manager
         self.changelog = None
@@ -1082,85 +1086,6 @@ class StreamCheckerService:
         
         return False
     
-    def _tag_stream_as_dead(self, stream_id: int, stream_name: str) -> bool:
-        """Tag a stream as dead by adding [DEAD] prefix to its name.
-        
-        Args:
-            stream_id: The stream ID to tag
-            stream_name: Current name of the stream
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        base_url = _get_base_url()
-        if not base_url:
-            logging.error("Cannot tag stream as dead: DISPATCHARR_BASE_URL not set")
-            return False
-        
-        # Check if already tagged
-        if stream_name.startswith('[DEAD]'):
-            logging.debug(f"Stream {stream_id} already tagged as DEAD")
-            return True
-        
-        # Add [DEAD] prefix
-        new_name = f"[DEAD] {stream_name}"
-        stream_url = f"{base_url}/api/channels/streams/{int(stream_id)}/"
-        
-        try:
-            patch_payload = {"name": new_name}
-            logging.warning(f"🔴 TAGGING DEAD STREAM {stream_id}: '{stream_name}' -> '{new_name}'")
-            response = patch_request(stream_url, patch_payload)
-            
-            # Verify the update was successful
-            if response.status_code in [200, 204]:
-                logging.info(f"✓ Successfully tagged stream {stream_id} as DEAD")
-                return True
-            else:
-                logging.error(f"Unexpected response code {response.status_code} when tagging stream {stream_id}")
-                return False
-        except Exception as e:
-            logging.error(f"❌ Error tagging stream {stream_id} as dead: {e}")
-            return False
-    
-    def _untag_stream_as_dead(self, stream_id: int, stream_name: str) -> bool:
-        """Remove [DEAD] prefix from a stream name if it was revived.
-        
-        Args:
-            stream_id: The stream ID to untag
-            stream_name: Current name of the stream (with [DEAD] prefix)
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        base_url = _get_base_url()
-        if not base_url:
-            logging.error("Cannot untag stream: DISPATCHARR_BASE_URL not set")
-            return False
-        
-        # Check if tagged
-        if not stream_name.startswith('[DEAD]'):
-            logging.debug(f"Stream {stream_id} is not tagged as DEAD")
-            return True
-        
-        # Remove [DEAD] prefix
-        new_name = stream_name.replace('[DEAD]', '').strip()
-        stream_url = f"{base_url}/api/channels/streams/{int(stream_id)}/"
-        
-        try:
-            patch_payload = {"name": new_name}
-            logging.warning(f"🟢 REVIVING STREAM {stream_id}: '{stream_name}' -> '{new_name}'")
-            response = patch_request(stream_url, patch_payload)
-            
-            # Verify the update was successful
-            if response.status_code in [200, 204]:
-                logging.info(f"✓ Successfully untagged stream {stream_id} (revived)")
-                return True
-            else:
-                logging.error(f"Unexpected response code {response.status_code} when untagging stream {stream_id}")
-                return False
-        except Exception as e:
-            logging.error(f"❌ Error untagging stream {stream_id}: {e}")
-            return False
     
     def _update_stream_stats(self, stream_data: Dict) -> bool:
         """Update stream stats for a single stream on the server."""
@@ -1352,27 +1277,24 @@ class StreamCheckerService:
                 
                 # Check if stream is dead (resolution=0 or bitrate=0)
                 is_dead = self._is_stream_dead(analyzed)
+                stream_url = stream.get('url', '')
                 stream_name = stream.get('name', 'Unknown')
-                was_dead = stream_name.startswith('[DEAD]')
+                was_dead = self.dead_streams_tracker.is_dead(stream_url)
                 
                 if is_dead and not was_dead:
-                    # Tag as dead - only add to dead_stream_ids if tagging succeeds
-                    if self._tag_stream_as_dead(stream['id'], stream_name):
+                    # Mark as dead in tracker
+                    if self.dead_streams_tracker.mark_as_dead(stream_url, stream['id'], stream_name):
                         dead_stream_ids.append(stream['id'])
-                        # Update the stream_name in analyzed data to reflect the [DEAD] tag
-                        analyzed['stream_name'] = f"[DEAD] {stream_name}"
                         logging.warning(f"Stream {stream['id']} detected as DEAD: {stream_name}")
                     else:
-                        logging.error(f"Failed to tag stream {stream['id']} as DEAD, will not remove from channel")
+                        logging.error(f"Failed to mark stream {stream['id']} as DEAD, will not remove from channel")
                 elif not is_dead and was_dead:
-                    # Stream was revived - only add to revived_stream_ids if untagging succeeds
-                    if self._untag_stream_as_dead(stream['id'], stream_name):
+                    # Stream was revived!
+                    if self.dead_streams_tracker.mark_as_alive(stream_url):
                         revived_stream_ids.append(stream['id'])
-                        # Update the stream_name in analyzed data to remove the [DEAD] tag
-                        analyzed['stream_name'] = stream_name.replace('[DEAD]', '').strip()
                         logging.info(f"Stream {stream['id']} REVIVED: {stream_name}")
                     else:
-                        logging.error(f"Failed to untag stream {stream['id']}, keeping [DEAD] prefix")
+                        logging.error(f"Failed to mark stream {stream['id']} as alive")
                 
                 # Calculate score
                 score = self._calculate_stream_score(analyzed)
@@ -1415,25 +1337,25 @@ class StreamCheckerService:
                     }
                     
                     # Check if this cached stream is dead and add to dead_stream_ids
+                    stream_url = stream.get('url', '')
                     stream_name = stream.get('name', 'Unknown')
                     is_dead = self._is_stream_dead(analyzed)
-                    was_dead = stream_name.startswith('[DEAD]')
+                    was_dead = self.dead_streams_tracker.is_dead(stream_url)
                     
-                    # If stream is dead (either was already tagged or is detected as dead), track it
+                    # If stream is dead (either was already marked or is detected as dead), track it
                     if is_dead or was_dead:
                         # Only add to dead_stream_ids if either:
-                        # 1. Stream was already tagged (safe to remove)
-                        # 2. Stream is newly detected as dead AND tagging succeeds
+                        # 1. Stream was already marked (safe to remove)
+                        # 2. Stream is newly detected as dead AND marking succeeds
                         if was_dead:
                             dead_stream_ids.append(stream['id'])
                         elif not was_dead:
-                            # If it wasn't tagged but is dead, tag it now
-                            if self._tag_stream_as_dead(stream['id'], stream_name):
+                            # If it wasn't marked but is dead, mark it now
+                            if self.dead_streams_tracker.mark_as_dead(stream_url, stream['id'], stream_name):
                                 dead_stream_ids.append(stream['id'])
-                                analyzed['stream_name'] = f"[DEAD] {stream_name}"
                                 logging.warning(f"Cached stream {stream['id']} detected as DEAD: {stream_name}")
                             else:
-                                logging.error(f"Failed to tag cached stream {stream['id']} as DEAD, will not remove from channel")
+                                logging.error(f"Failed to mark cached stream {stream['id']} as DEAD, will not remove from channel")
                     
                     # Recalculate score from cached data
                     score = self._calculate_stream_score(analyzed)

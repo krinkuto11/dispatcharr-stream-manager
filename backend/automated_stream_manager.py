@@ -28,6 +28,13 @@ from api_utils import (
     _get_base_url
 )
 
+# Import DeadStreamsTracker
+try:
+    from dead_streams_tracker import DeadStreamsTracker
+    DEAD_STREAMS_TRACKER_AVAILABLE = True
+except ImportError:
+    DEAD_STREAMS_TRACKER_AVAILABLE = False
+    logging.warning("DeadStreamsTracker not available. Dead stream filtering will be disabled.")
 
 
 # Custom logging filter to exclude HTTP-related logs
@@ -286,6 +293,15 @@ class AutomatedStreamManager:
         self.config = self._load_config()
         self.changelog = ChangelogManager()
         self.regex_matcher = RegexChannelMatcher()
+        
+        # Initialize dead streams tracker
+        self.dead_streams_tracker = None
+        if DEAD_STREAMS_TRACKER_AVAILABLE:
+            try:
+                self.dead_streams_tracker = DeadStreamsTracker()
+                logging.info("Dead streams tracker initialized")
+            except Exception as e:
+                logging.warning(f"Failed to initialize dead streams tracker: {e}")
         
         self.running = False
         self.last_playlist_update = None
@@ -620,10 +636,11 @@ class AutomatedStreamManager:
                 if not stream_name or not stream_id:
                     continue
                 
-                # Skip streams marked as [DEAD] during matching
+                # Skip streams marked as dead in the tracker
                 # Dead streams should not be added to channels during subsequent matches
-                if stream_name.startswith('[DEAD]'):
-                    logging.debug(f"Skipping dead stream {stream_id}: {stream_name}")
+                stream_url = stream.get('url', '')
+                if self.dead_streams_tracker and self.dead_streams_tracker.is_dead(stream_url):
+                    logging.debug(f"Skipping dead stream {stream_id}: {stream_name} (URL: {stream_url})")
                     continue
                 
                 # Find matching channels
